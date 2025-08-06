@@ -5,14 +5,21 @@ import 'package:path_provider/path_provider.dart';
 class CredentialService {
   final _secureStorage = const FlutterSecureStorage();
 
-  // ESTA ES LA NUEVA FUNCIÓN
   /// Verifica si ya existen credenciales guardadas en el dispositivo.
   Future<bool> areCredentialsSaved() async {
-    // Intentamos leer la ruta del certificado. Si existe y no está vacía,
-    // asumimos que las credenciales están completas.
     final path = await _secureStorage.read(key: 'user_p12_path');
     return path != null && path.isNotEmpty;
   }
+
+  // --- NUEVA FUNCIÓN ---
+  /// Recupera las credenciales guardadas de forma segura.
+  /// Retorna un mapa con la contraseña y la ruta al archivo .p12.
+  Future<Map<String, String?>> getCredentials() async {
+    final password = await _secureStorage.read(key: 'user_p12_password');
+    final path = await _secureStorage.read(key: 'user_p12_path');
+    return {'password': password, 'path': path};
+  }
+  // --- FIN DE LA NUEVA FUNCIÓN ---
 
   /// Guarda la contraseña y el archivo P12 de forma segura
   Future<void> saveCredentials(String password, String originalP12Path) async {
@@ -33,6 +40,4 @@ class CredentialService {
       print('ERROR al guardar las credenciales: $e');
     }
   }
-
-  // (Aquí irían otras funciones como getCredentials, deleteCredentials, etc.)
 }
