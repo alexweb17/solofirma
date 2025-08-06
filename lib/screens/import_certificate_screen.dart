@@ -1,36 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-// ¡Aún no lo usamos, pero lo dejaremos listo para el siguiente paso!
-// import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// 1. IMPORTAMOS LA NUEVA PANTALLA
+import 'home_screen.dart'; 
+// Importamos el servicio que creamos
+import '../services/credential_services.dart';
 
 class ImportCertificateScreen extends StatefulWidget {
   const ImportCertificateScreen({super.key});
 
   @override
-  State<ImportCertificateScreen> createState() => _ImportCertificateScreenState();
+  State<ImportCertificateScreen> createState() =>
+      _ImportCertificateScreenState();
 }
 
 class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
+  final _credentialService = CredentialService();
+
   Future<void> _showPasswordDialog(String filePath) async {
-    // La comprobación de seguridad se hace ANTES de mostrar el diálogo
     if (!mounted) return;
 
     final passwordController = TextEditingController();
-    
+
+    // Usamos un context diferente para el diálogo para evitar confusiones
     return showDialog<void>(
       context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
+      barrierDismissible: false, 
+      builder: (BuildContext dialogContext) { 
         return AlertDialog(
           title: const Text('Contraseña del Certificado'),
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                const Text('Por favor, ingresa la contraseña de tu archivo .p12.'),
+                const Text(
+                    'Por favor, ingresa la contraseña de tu archivo .p12.'),
                 const SizedBox(height: 16),
                 TextField(
                   controller: passwordController,
-                  obscureText: true,
+                  obscureText: true, 
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     labelText: 'Contraseña',
@@ -43,7 +49,7 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
             TextButton(
               child: const Text('Cancelar'),
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
               },
             ),
             FilledButton(
@@ -51,15 +57,19 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
               onPressed: () {
                 final password = passwordController.text;
                 
-                // 1. HEMOS QUITADO LOS PRINTS INSEGUROS
-                // Aquí irá la lógica para guardar de forma segura
-                
-                Navigator.of(context).pop(); // Cierra el diálogo
-                
-                // 2. AÑADIMOS LA COMPROBACIÓN ANTES DE USAR EL CONTEXT
+                // Guardamos las credenciales como antes
+                _credentialService.saveCredentials(password, filePath);
+
+                // Cerramos el diálogo
+                Navigator.of(dialogContext).pop();
+
+                // 2. ¡AQUÍ ESTÁ LA NUEVA NAVEGACIÓN!
+                // Reemplazamos la pantalla actual con la HomeScreen
+                // y eliminamos todas las rutas anteriores del historial.
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('¡Certificado y contraseña listos!')),
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  (Route<dynamic> route) => false,
                 );
               },
             ),
@@ -73,10 +83,9 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['p12'],
+        allowedExtensions: ['p12'], 
       );
 
-      // 2. AÑADIMOS LA COMPROBACIÓN ANTES DE USAR EL CONTEXT
       if (!mounted) return;
 
       if (result != null) {
@@ -90,7 +99,6 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
         );
       }
     } catch (e) {
-      // 2. AÑADIMOS LA COMPROBACIÓN ANTES DE USAR EL CONTEXT
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al seleccionar el archivo: $e')),
@@ -100,6 +108,7 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // El resto del código de la UI no necesita cambios.
     return Scaffold(
       appBar: AppBar(
         title: const Text('Importar Certificado'),
@@ -128,7 +137,8 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Seleccionar Archivo .p12'),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                   textStyle: const TextStyle(fontSize: 16),
                 ),
                 onPressed: _pickCertificate,
@@ -140,4 +150,3 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
     );
   }
 }
-
