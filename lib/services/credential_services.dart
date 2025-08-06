@@ -38,6 +38,7 @@ class CredentialService {
 
     } catch (e) {
       print('ERROR al guardar las credenciales: $e');
+      rethrow; // Relanzamos la excepción para que la UI pueda manejarla.
     }
   }
 }

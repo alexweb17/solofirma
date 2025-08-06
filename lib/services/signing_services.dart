@@ -41,7 +41,7 @@ class SigningService {
         'SoloFirmaSignature',
         bounds: const Rect.fromLTWH(0, 0, 0, 0), // Rectángulo invisible por ahora
         signature: PdfSignature(
-          certificate: PdfPkcs12Certificate(p12Bytes, password),
+          certificate: PdfCertificate(p12Bytes, password),
           contactInfo: 'firmado@solofirma.app',
           reason: 'Firmado digitalmente con SoloFirma',
           locationInfo: 'Ecuador'
@@ -63,8 +63,8 @@ class SigningService {
       print('PDF firmado con éxito usando Syncfusion en: $signedPdfPath');
       return signedFile;
 
-    } catch (e) {
-      print('Error al firmar el documento con Syncfusion: $e');
+    } on Exception catch (e) {
+      print('Error al firmar el documento: $e');
       return null;
     }
   }

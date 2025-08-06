@@ -54,23 +54,35 @@ class _ImportCertificateScreenState extends State<ImportCertificateScreen> {
             ),
             FilledButton(
               child: const Text('Guardar'),
-              onPressed: () {
+              onPressed: () async { // 1. Convertir la función a async
                 final password = passwordController.text;
-                
-                // Guardamos las credenciales como antes
-                _credentialService.saveCredentials(password, filePath);
+                // Capturamos el Navigator y ScaffoldMessenger ANTES de la operación asíncrona
+                // para evitar advertencias del linter.
+                final navigator = Navigator.of(context);
+                final dialogNavigator = Navigator.of(dialogContext);
 
-                // Cerramos el diálogo
-                Navigator.of(dialogContext).pop();
+                try {
+                  // 2. Esperar a que la operación de guardado termine
+                  await _credentialService.saveCredentials(password, filePath);
 
-                // 2. ¡AQUÍ ESTÁ LA NUEVA NAVEGACIÓN!
-                // Reemplazamos la pantalla actual con la HomeScreen
-                // y eliminamos todas las rutas anteriores del historial.
-                if (!mounted) return;
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const HomeScreen()),
-                  (Route<dynamic> route) => false,
-                );
+                  // 3. Si todo va bien, cerramos el diálogo y navegamos
+                  dialogNavigator.pop();
+                  navigator.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    (Route<dynamic> route) => false,
+                  );
+
+                } catch (e) {
+                  // 4. Si hay un error, lo mostramos y permanecemos en el diálogo
+                  dialogNavigator.pop(); // Cerramos el diálogo de contraseña
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error al guardar: $e'),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  );
+                }
               },
             ),
           ],
