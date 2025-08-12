@@ -39,7 +39,7 @@ class SigningService {
 
       // --- PASO 4: DIBUJAR EL QR EN EL PDF (SIN CAMBIOS) ---
       final page = document.pages[0];
-      final signatureSize = const Size(75, 75);
+      const signatureSize = Size(75, 75);
       final signatureBounds = Rect.fromLTWH(
         signaturePosition.dx,
         signaturePosition.dy,

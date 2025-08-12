@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class DraggableSignatureBox extends StatefulWidget {
   final Function(Offset position) onPositionChanged;
 
-  const DraggableSignatureBox({Key? key, required this.onPositionChanged}) : super(key: key);
+  const DraggableSignatureBox({super.key, required this.onPositionChanged});
 
   @override
   _DraggableSignatureBoxState createState() => _DraggableSignatureBoxState();

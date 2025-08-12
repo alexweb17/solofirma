@@ -16,6 +16,15 @@ pluginManagement {
     }
 }
 
+dependencyResolutionManagement {
+    // **CAMBIO CLAVE: Relajamos la regla para que sea compatible con el plugin de Flutter**
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.7.3" apply false
