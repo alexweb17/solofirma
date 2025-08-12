@@ -1,5 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:solofirma/screens/signing_success_screen.dart';
+// ¡RUTA CORREGIDA! Ahora apunta al archivo en plural.
+import 'package:solofirma/services/signing_services.dart';
+import 'package:solofirma/widgets/draggable_signature_box.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class PdfPreviewScreen extends StatefulWidget {
@@ -12,58 +16,79 @@ class PdfPreviewScreen extends StatefulWidget {
 }
 
 class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
-  // Esta variable guardará la posición (x, y) de tu toque.
   Offset? _signaturePosition;
+  bool _isSigning = false; // Variable para mostrar un indicador de carga
+
+  // Función que se encarga de todo el proceso de firma
+  Future<void> _signDocument() async {
+    if (_signaturePosition == null) return;
+
+    setState(() {
+      _isSigning = true; // Muestra el indicador de carga
+    });
+
+    try {
+      // Aquí instanciamos y usamos el servicio de firma que ya creamos
+      final signingService = SigningService();
+      // ¡IMPORTANTE! Necesitarás pasar la posición y el tamaño del cuadro
+      // a tu servicio para que sepa dónde estampar el QR.
+      final signedFile = await signingService.signPdf(widget.pdfFile, _signaturePosition!);
+
+      if (signedFile != null && mounted) {
+        // Si la firma fue exitosa, navegamos a la pantalla de éxito
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SigningSuccessScreen(signedPdfFile: signedFile),
+          ),
+        );
+      } else {
+        // Manejo de error si la firma falla
+        throw Exception('No se pudo firmar el archivo.');
+      }
+    } catch (e) {
+      // Si algo sale mal, mostramos un mensaje de error
+      setState(() {
+        _isSigning = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al firmar: ${e.toString()}')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Toque para ubicar la firma'),
+        title: const Text('Ubique el área de la firma'),
         actions: [
-          // Botón para confirmar la firma
           IconButton(
             icon: const Icon(Icons.check),
-            // El botón solo se activa si ya has tocado la pantalla
-            onPressed: _signaturePosition == null
-                ? null
-                : () {
-                    // Lógica para firmar usando la posición guardada
-                    print('Posición de la firma seleccionada: $_signaturePosition');
-                    // Próximo paso: Generar QR y estamparlo aquí
-                  },
+            onPressed: (_signaturePosition == null || _isSigning) ? null : _signDocument,
           ),
         ],
       ),
-      // Usamos un Stack para poder poner el marcador ENCIMA del PDF
       body: Stack(
         children: [
-          // Este detector de gestos envuelve al visor y escucha tus toques
-          GestureDetector(
-            onTapUp: (details) {
-              // Cuando tocas, guardamos la posición y redibujamos la pantalla
+          SfPdfViewer.file(
+            widget.pdfFile,
+          ),
+          DraggableSignatureBox(
+            onPositionChanged: (position) {
               setState(() {
-                _signaturePosition = details.localPosition;
+                _signaturePosition = position;
               });
             },
-            child: SfPdfViewer.file(
-              widget.pdfFile,
-            ),
           ),
-          // Este es el marcador visual. Solo aparece si ya has tocado la pantalla.
-          if (_signaturePosition != null)
-            Positioned(
-              // Usamos las coordenadas guardadas para posicionarlo
-              left: _signaturePosition!.dx - 25,
-              top: _signaturePosition!.dy - 25,
-              child: Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  color: Colors.red.withOpacity(0.2),
-                ),
-                child: const Icon(Icons.add, color: Colors.red),
+          // Indicador de carga que se muestra mientras se firma
+          if (_isSigning)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: CircularProgressIndicator(),
               ),
             ),
         ],
