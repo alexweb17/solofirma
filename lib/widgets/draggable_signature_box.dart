@@ -10,39 +10,59 @@ class DraggableSignatureBox extends StatefulWidget {
 }
 
 class _DraggableSignatureBoxState extends State<DraggableSignatureBox> {
-  // Posición inicial del cuadro en la pantalla
   Offset _position = const Offset(100, 100);
+  // 1. Añadimos un estado para saber si el cuadro está bloqueado.
+  bool _isLocked = false;
 
   @override
   Widget build(BuildContext context) {
+    // 2. El color ahora depende del estado _isLocked.
+    final Color boxColor = _isLocked ? Colors.green : Colors.black;
+
     return Positioned(
       left: _position.dx,
       top: _position.dy,
+      // 3. El GestureDetector ahora maneja más gestos.
       child: GestureDetector(
-        // Detecta cuando el usuario arrastra el dedo
+        // ARRASTRAR: Solo funciona si el cuadro NO está bloqueado.
         onPanUpdate: (details) {
+          if (!_isLocked) {
+            setState(() {
+              _position += details.delta;
+              widget.onPositionChanged(_position);
+            });
+          }
+        },
+        // UN TOQUE: Bloquea el cuadro.
+        onTap: () {
           setState(() {
-            // Actualiza la posición del cuadro
-            _position += details.delta;
-            widget.onPositionChanged(_position);
+            _isLocked = true;
+          });
+        },
+        // DOBLE TOQUE: Desbloquea el cuadro.
+        onDoubleTap: () {
+          setState(() {
+            _isLocked = false;
           });
         },
         child: Container(
-          width: 150, // Ancho del área de la firma
-          height: 75, // Alto del área de la firma
+          width: 150,
+          height: 75,
           decoration: BoxDecoration(
             border: Border.all(
-              color: Colors.blue,
+              color: boxColor, // El color del borde cambia
               width: 2,
-              style: BorderStyle.solid,
             ),
             borderRadius: BorderRadius.circular(8),
-            color: Colors.blue.withOpacity(0.2), // Un poco de color para que se vea
+            color: boxColor.withOpacity(0.2), // El color del fondo cambia
           ),
-          child: const Center(
+          child: Center(
             child: Text(
-              'Arrastra aquí tu firma',
-              style: TextStyle(color: Colors.blue, fontSize: 12),
+              // 4. El texto también cambia para guiar al usuario.
+              _isLocked
+                  ? 'Firma ubicada.\nDoble-toque para mover.'
+                  : 'Arrastra para ubicar.\nUn toque para fijar.',
+              style: TextStyle(color: boxColor, fontSize: 12, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
           ),
@@ -51,20 +71,3 @@ class _DraggableSignatureBoxState extends State<DraggableSignatureBox> {
     );
   }
 }
-
-// CÓMO USARLO EN TU PANTALLA DE PREVISUALIZACIÓN:
-//
-// Stack(
-//   children: [
-//     // 1. Tu visor de PDF aquí abajo
-//     PdfViewerWidget(),
-//
-//     // 2. El cuadro de la firma encima
-//     DraggableSignatureBox(
-//       onPositionChanged: (position) {
-//         // Aquí guardas la posición final para luego estampar el QR
-//         print('Nueva posición de la firma: $position');
-//       },
-//     ),
-//   ],
-// )

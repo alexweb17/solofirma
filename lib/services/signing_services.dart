@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // 1. Importamos el paquete del QR
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'credential_services.dart';
 
@@ -11,7 +11,6 @@ class SigningService {
   Future<File?> signPdf(File originalPdf, Offset signaturePosition) async {
     try {
       // --- PASOS 1 Y 2: OBTENER CREDENCIALES Y CARGAR PDF (SIN CAMBIOS) ---
-      print('Recuperando credenciales...');
       final credentials = await _credentialService.getCredentials();
       final password = credentials['password'];
       final p12Path = credentials['path'];
@@ -24,42 +23,39 @@ class SigningService {
       final Uint8List p12Bytes = await p12File.readAsBytes();
       final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
 
-      // --- PASO 3: GENERAR LA IMAGEN DEL QR ---
-      print('Generando imagen del QR...');
-      // Datos que irán en el QR (puedes personalizarlos)
-      const qrData = 'Documento Firmado por SoloFirma'; 
+      // --- PASO 3: GENERAR LA IMAGEN DEL QR (SIN CAMBIOS) ---
+      const qrData = 'Documento Firmado por SoloFirma';
       final qrImage = await QrPainter(
         data: qrData,
         version: QrVersions.auto,
         gapless: false,
-      ).toImageData(200); // Tamaño de la imagen
+      ).toImageData(200);
 
       if (qrImage == null) {
         throw Exception('No se pudo generar la imagen del QR.');
       }
       final Uint8List qrImageBytes = qrImage.buffer.asUint8List();
       final PdfBitmap pdfQrImage = PdfBitmap(qrImageBytes);
-      print('Imagen del QR generada.');
 
-      // --- PASO 4: DIBUJAR EL QR EN EL PDF ---
-      print('Dibujando QR en el PDF...');
-      final page = document.pages[0]; // Trabajamos en la primera página
-      final signatureSize = const Size(75, 75); // Tamaño del QR en el PDF
+      // --- PASO 4: DIBUJAR EL QR EN EL PDF (SIN CAMBIOS) ---
+      final page = document.pages[0];
+      final signatureSize = const Size(75, 75);
       final signatureBounds = Rect.fromLTWH(
         signaturePosition.dx,
         signaturePosition.dy,
         signatureSize.width,
         signatureSize.height,
       );
-      // Dibujamos la imagen del QR en la página
       page.graphics.drawImage(pdfQrImage, signatureBounds);
-      print('QR dibujado en la posición: $signaturePosition');
 
-      // --- PASO 5: CREAR Y APLICAR LA FIRMA DIGITAL (INVISIBLE) ---
+      // --- PASO 5: CREAR Y APLICAR LA FIRMA DIGITAL ---
+      // **CAMBIO CLAVE: Generamos un nombre de campo único cada vez.**
+      final String signatureFieldName = 'SoloFirmaSignature_${DateTime.now().millisecondsSinceEpoch}';
+
       final PdfSignatureField field = PdfSignatureField(
         page,
-        'SoloFirmaSignature',
-        bounds: signatureBounds, // La firma invisible ocupa el mismo espacio que el QR
+        signatureFieldName, // <-- Usamos el nombre único
+        bounds: signatureBounds,
         signature: PdfSignature(
           certificate: PdfCertificate(p12Bytes, password),
           contactInfo: 'firmado@solofirma.app',
