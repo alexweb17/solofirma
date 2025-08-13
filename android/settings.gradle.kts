@@ -1,3 +1,5 @@
+// Contenido de android/settings.gradle.kts
+
 pluginManagement {
     val flutterSdkPath = run {
         val properties = java.util.Properties()
@@ -13,15 +15,18 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        // **AÑADIDO: Repositorio para los plugins de Flutter**
+        maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
     }
 }
 
 dependencyResolutionManagement {
-    // **CAMBIO CLAVE: Relajamos la regla para que sea compatible con el plugin de Flutter**
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
+        // **AÑADIDO: Repositorio para las dependencias de Flutter**
+        maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
     }
 }
 
