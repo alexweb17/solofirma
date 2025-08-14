@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:solofirma/screens/signing_success_screen.dart';
-// ¡RUTA CORREGIDA! Ahora apunta al archivo en plural.
 import 'package:solofirma/services/signing_services.dart';
 import 'package:solofirma/widgets/draggable_signature_box.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -17,25 +16,32 @@ class PdfPreviewScreen extends StatefulWidget {
 
 class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   Offset? _signaturePosition;
-  bool _isSigning = false; // Variable para mostrar un indicador de carga
+  bool _isSigning = false;
 
-  // Función que se encarga de todo el proceso de firma
+  final PdfViewerController _pdfViewerController = PdfViewerController();
+  Size? _pdfViewSize;
+  // ***** CAMBIO 1: Variable de estado para la página actual *****
+  int _currentPageIndex = 0;
+
   Future<void> _signDocument() async {
-    if (_signaturePosition == null) return;
+    if (_signaturePosition == null || _pdfViewSize == null) return;
 
     setState(() {
-      _isSigning = true; // Muestra el indicador de carga
+      _isSigning = true;
     });
 
     try {
-      // Aquí instanciamos y usamos el servicio de firma que ya creamos
       final signingService = SigningService();
-      // ¡IMPORTANTE! Necesitarás pasar la posición y el tamaño del cuadro
-      // a tu servicio para que sepa dónde estampar el QR.
-      final signedFile = await signingService.signPdf(widget.pdfFile, _signaturePosition!);
+
+      // ***** CAMBIO 2: Usamos nuestra variable de estado, que es más precisa *****
+      final signedFile = await signingService.signPdf(
+        widget.pdfFile,
+        _signaturePosition!,
+        _pdfViewSize!,
+        _currentPageIndex, // <-- Usamos la variable de estado
+      );
 
       if (signedFile != null && mounted) {
-        // Si la firma fue exitosa, navegamos a la pantalla de éxito
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -43,11 +49,9 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
           ),
         );
       } else {
-        // Manejo de error si la firma falla
         throw Exception('No se pudo firmar el archivo.');
       }
     } catch (e) {
-      // Si algo sale mal, mostramos un mensaje de error
       setState(() {
         _isSigning = false;
       });
@@ -73,8 +77,23 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
       ),
       body: Stack(
         children: [
-          SfPdfViewer.file(
-            widget.pdfFile,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              _pdfViewSize = constraints.biggest;
+              
+              return SfPdfViewer.file(
+                widget.pdfFile,
+                controller: _pdfViewerController,
+                // ***** CAMBIO 3: Escuchamos cuando el usuario cambia de página *****
+                onPageChanged: (PdfPageChangedDetails details) {
+                  // Actualizamos nuestra variable de estado.
+                  // Restamos 1 porque el visor cuenta desde 1, y nosotros desde 0.
+                  setState(() {
+                    _currentPageIndex = details.newPageNumber - 1;
+                  });
+                },
+              );
+            },
           ),
           DraggableSignatureBox(
             onPositionChanged: (position) {
@@ -83,7 +102,6 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
               });
             },
           ),
-          // Indicador de carga que se muestra mientras se firma
           if (_isSigning)
             Container(
               color: Colors.black.withOpacity(0.5),

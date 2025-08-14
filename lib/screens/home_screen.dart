@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -35,7 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _navigateToPreview(value.first.path);
       }
     }, onError: (err) {
-      // print("Error en getMediaStream: $err"); // Comentado para producción
+      if (kDebugMode) {
+        print("Error en getMediaStream: $err");
+      }
     });
 
     // CASO 2: La app está cerrada y se abre con un archivo.
