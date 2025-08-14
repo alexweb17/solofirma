@@ -4,182 +4,292 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:asn1lib/asn1lib.dart';
-import 'package:x509/x509.dart';
+import 'package:basic_utils/basic_utils.dart';
 import 'credential_services.dart';
 
+// ***** Clases auxiliares *****
+class _P12Data {
+  final Uint8List bytes;
+  final String password;
+  _P12Data(this.bytes, this.password);
+}
 
+class _SignatureCoords {
+  final double pdfX;
+  final double pdfY;
+  _SignatureCoords(this.pdfX, this.pdfY);
+}
 
 class SigningService {
   final _credentialService = CredentialService();
 
-  /// Convierte bytes DER a texto PEM
-  String _derToPem(Uint8List derBytes) {
-    final base64Cert = base64.encode(derBytes);
-    final chunked = base64Cert.replaceAllMapped(
-      RegExp(r'.{1,64}'),
-      (match) => '${match.group(0)}\n',
-    );
-    return '-----BEGIN CERTIFICATE-----\n$chunked-----END CERTIFICATE-----\n';
-  }
+  // ===================== CONSTANTES =====================
+  static const Size _qrSize = Size(60, 60);
+  static const double _textSpacing = 5.0;
+  static const double _fontSize = 8.0;
+  static const double _textMaxWidth = 150.0;
+  static const String _defaultSignerName = 'Firmante no identificado';
 
-  /// Parsea un archivo PKCS#12 (.p12/.pfx) y devuelve el CN del certificado principal
-  String _extractCommonNameFromP12(Uint8List p12Bytes, String password) {
-    try {
-      // Esta es una implementación manual para parsear. Es compleja.
-      // Si en el futuro falla con otros certificados, considera volver a 'basic_utils'.
-      final parser = ASN1Parser(p12Bytes);
-      final topLevelSeq = parser.nextObject() as ASN1Sequence;
-
-      for (var el in topLevelSeq.elements) {
-        if (el is ASN1Sequence) {
-          for (var subEl in el.elements) {
-            if (subEl is ASN1Sequence) {
-              try {
-                // Convertimos este posible DER a PEM
-                final pem = _derToPem(subEl.encodedBytes);
-                final certs = parsePem(pem);
-                if (certs.isNotEmpty) {
-                  final cn = certs.first.subject['commonName'];
-                  if (cn != null && cn.isNotEmpty) {
-                    return cn; // Devuelve el primer Common Name que encuentre
-                  }
-                }
-              } catch (_) {
-                // No es un certificado válido en esta secuencia, se ignora y continúa la búsqueda.
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      print("Error al parsear el .p12: $e");
-    }
-    return "Firmante no identificado";
-  }
-
+  // ===================== MÉTODO PRINCIPAL =====================
   Future<File?> signPdf(
     File originalPdf,
     Offset signaturePosition,
     Size viewSize,
     int pageIndex,
   ) async {
+    PdfDocument? document;
     try {
-      // --- OBTENCIÓN DE CREDENCIALES ---
+      // 1️⃣ Cargar credenciales
+      final p12Data = await _loadP12Credentials();
+
+      // 2️⃣ Leer PDF
+      final pdfBytes = await originalPdf.readAsBytes();
+      document = PdfDocument(inputBytes: pdfBytes);
+
+      // 3️⃣ Generar QR
+      final qrImage = await _generateQrImage('Documento Firmado por SoloFirma');
+
+      // 4️⃣ Calcular posición de firma
+      final coords = _calculateSignatureCoordinates(document, viewSize, signaturePosition, pageIndex);
+
+      // 5️⃣ Obtener nombre del firmante
+      final signerName = _extractSignerName(p12Data.bytes, p12Data.password);
+
+      // 6️⃣ Dibujar QR y nombre
+      _drawQrAndName(document.pages[pageIndex], qrImage, signerName, coords.pdfX, coords.pdfY);
+
+      // 7️⃣ Aplicar firma digital
+      _applyDigitalSignature(document, p12Data.bytes, p12Data.password, pageIndex, coords.pdfX, coords.pdfY);
+
+      // 8️⃣ Guardar PDF firmado
+      final signedFile = await _saveSignedPdf(originalPdf, document);
+
+      return signedFile;
+    } catch (e) {
+      print('Error al firmar el documento: $e');
+      // Asegurar que se libere la memoria incluso si hay error
+      document?.dispose();
+      return null;
+    }
+  }
+
+  // ===================== MÉTODOS PRIVADOS =====================
+
+  /// Cargar archivo P12 y contraseña con manejo robusto de errores
+  Future<_P12Data> _loadP12Credentials() async {
+    try {
       final credentials = await _credentialService.getCredentials();
       final password = credentials['password'];
       final p12Path = credentials['path'];
 
-      if (password == null || p12Path == null) {
-        throw Exception('No se encontraron las credenciales del certificado.');
+      if (password == null || password.isEmpty) {
+        throw Exception('Contraseña del certificado no proporcionada');
+      }
+      if (p12Path == null || p12Path.isEmpty) {
+        throw Exception('Ruta del certificado no proporcionada');
       }
 
       final p12File = File(p12Path);
       if (!await p12File.exists()) {
-        throw Exception(
-          'El archivo de la firma electrónica no existe en la ruta: $p12Path',
-        );
+        throw Exception('El archivo .p12 no existe en la ruta: $p12Path');
       }
 
-      final Uint8List pdfBytes = await originalPdf.readAsBytes();
-      final Uint8List p12Bytes = await p12File.readAsBytes();
-      final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+      final p12Bytes = await p12File.readAsBytes();
+      return _P12Data(p12Bytes, password);
+    } catch (e) {
+      throw Exception('Error al cargar credenciales: $e');
+    }
+  }
 
-      // --- GENERACIÓN DE QR ---
-      const qrData = 'Documento Firmado por SoloFirma';
-      final qrImage = await QrPainter(
-        data: qrData,
-        version: QrVersions.auto,
-        gapless: false,
-      ).toImageData(200);
+  /// Generar QR como PdfBitmap
+  Future<PdfBitmap> _generateQrImage(String data) async {
+    final qrImageData = await QrPainter(
+      data: data,
+      version: QrVersions.auto,
+      gapless: false,
+    ).toImageData(200);
 
-      if (qrImage == null) {
-        throw Exception('No se pudo generar la imagen del QR.');
+    if (qrImageData == null) {
+      throw Exception('No se pudo generar la imagen del QR.');
+    }
+    return PdfBitmap(qrImageData.buffer.asUint8List());
+  }
+
+  /// Calcular coordenadas de firma con validación
+  _SignatureCoords _calculateSignatureCoordinates(
+    PdfDocument document,
+    Size viewSize,
+    Offset signaturePosition,
+    int pageIndex,
+  ) {
+    if (pageIndex < 0 || pageIndex >= document.pages.count) {
+      throw Exception('Página $pageIndex no válida. Páginas disponibles: 0-${document.pages.count - 1}');
+    }
+    if (viewSize.width <= 0 || viewSize.height <= 0) {
+      throw Exception('Tamaño de vista inválido: $viewSize');
+    }
+
+    final page = document.pages[pageIndex];
+    final pageSize = page.size;
+
+    double pdfX = signaturePosition.dx * pageSize.width / viewSize.width;
+    double pdfY = pageSize.height - (signaturePosition.dy * pageSize.height / viewSize.height) - _qrSize.height;
+
+    // Limitar dentro de la página
+    pdfX = pdfX.clamp(0.0, pageSize.width - _qrSize.width).toDouble();
+    pdfY = pdfY.clamp(0.0, pageSize.height - _qrSize.height - 25.0).toDouble(); // 25 para texto
+
+    return _SignatureCoords(pdfX, pdfY);
+  }
+
+  /// Extraer nombre del firmante del P12 - VERSIÓN SIMPLIFICADA
+  String _extractSignerName(Uint8List p12Bytes, String password) {
+    try {
+      // Usar Pkcs12Utils.parsePkcs12 para obtener los certificados PEM
+      final certPemStrings = Pkcs12Utils.parsePkcs12(p12Bytes, password: password);
+      
+      if (certPemStrings.isEmpty) {
+        print('No se encontraron certificados en el archivo P12');
+        return _defaultSignerName;
       }
-      final Uint8List qrImageBytes = qrImage.buffer.asUint8List();
-      final PdfBitmap pdfQrImage = PdfBitmap(qrImageBytes);
 
-      // --- CÁLCULO DE POSICIONES ---
-      if (pageIndex < 0 || pageIndex >= document.pages.count) {
-        throw Exception('El número de página no es válido.');
+      // Buscar el nombre en cada certificado PEM usando expresiones regulares
+      for (final certPem in certPemStrings) {
+        if (certPem.contains('BEGIN CERTIFICATE')) {
+          final name = _extractNameFromPem(certPem);
+          if (name != _defaultSignerName) {
+            return name;
+          }
+        }
       }
-      final PdfPage page = document.pages[pageIndex];
-      final Size pageSize = page.size;
-      const Size signatureQrSize = Size(60, 60);
 
-      final double scaleX = pageSize.width / viewSize.width;
-      final double scaleY = pageSize.height / viewSize.height;
-      final double pdfX = signaturePosition.dx * scaleX;
-      final double pdfY = pageSize.height -
-          (signaturePosition.dy * scaleY) -
-          (signatureQrSize.height + 20);
+      return _defaultSignerName;
+    } catch (e) {
+      print('Error al extraer nombre del certificado: $e');
+      return _defaultSignerName;
+    }
+  }
 
-      final signatureBounds = Rect.fromLTWH(
-        pdfX,
-        pdfY + 20,
-        signatureQrSize.width,
-        signatureQrSize.height,
-      );
+  /// Extraer nombre del certificado PEM usando RegExp (método auxiliar)
+  String _extractNameFromPem(String certPem) {
+    try {
+      // Decodificar el certificado base64 para obtener los datos raw
+      final base64Content = certPem
+          .replaceAll('-----BEGIN CERTIFICATE-----', '')
+          .replaceAll('-----END CERTIFICATE-----', '')
+          .replaceAll(RegExp(r'\s'), '');
+      
+      final certBytes = base64.decode(base64Content);
+      final certString = String.fromCharCodes(certBytes);
+      
+      // Buscar patrones comunes de nombres en certificados
+      final patterns = [
+        RegExp(r'CN=([^,/\n\r]+)', caseSensitive: false),  // Common Name
+        RegExp(r'O=([^,/\n\r]+)', caseSensitive: false),   // Organization
+        RegExp(r'OU=([^,/\n\r]+)', caseSensitive: false),  // Organizational Unit
+      ];
+      
+      for (final pattern in patterns) {
+        final match = pattern.firstMatch(certString);
+        if (match != null) {
+          final name = match.group(1);
+          if (name != null && name.trim().isNotEmpty) {
+            return _cleanSignerName(name);
+          }
+        }
+      }
+      
+      return _defaultSignerName;
+    } catch (e) {
+      print('Error al procesar certificado PEM: $e');
+      return _defaultSignerName;
+    }
+  }
 
-      // Dibujamos el QR directamente en la página
-      page.graphics.drawImage(pdfQrImage, signatureBounds);
+  /// Limpiar y formatear el nombre del firmante
+  String _cleanSignerName(String name) {
+    return name
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ') // Normalizar espacios
+        .replaceAll(RegExp(r'[^\w\s\u00C0-\u017F\-\.]'), '') // Mantener acentos, guiones y puntos
+        .trim();
+  }
 
-      // --- EXTRAER CN DESDE .P12 ---
-      final signerName = _extractCommonNameFromP12(p12Bytes, password);
+  /// Dibujar QR y nombre centrado
+  void _drawQrAndName(PdfPage page, PdfBitmap qrImage, String signerName, double pdfX, double pdfY) {
+    // Dibujar QR
+    page.graphics.drawImage(qrImage, Rect.fromLTWH(pdfX, pdfY, _qrSize.width, _qrSize.height));
 
-      // Dibujamos el CN debajo del QR, directamente en la página
-      page.graphics.drawString(
-        signerName,
-        PdfStandardFont(PdfFontFamily.helvetica, 8),
-        brush: PdfBrushes.black,
-        bounds: Rect.fromLTWH(pdfX, pdfY, 150, 20),
-      );
+    // Preparar el texto (truncar si es muy largo)
+    final font = PdfStandardFont(PdfFontFamily.helvetica, _fontSize);
+    String displayName = signerName;
+    
+    // Si el nombre es muy largo, truncarlo
+    final maxCharacters = 25; // Aproximado para el ancho disponible
+    if (displayName.length > maxCharacters) {
+      displayName = '${displayName.substring(0, maxCharacters - 3)}...';
+    }
 
-      // --- FIRMA DIGITAL ---
-      final PdfCertificate certificate = PdfCertificate(p12Bytes, password);
-      final String signatureFieldName =
-          'SoloFirmaSignature_${DateTime.now().millisecondsSinceEpoch}';
+    // Medir texto y centrar debajo del QR
+    final textSize = font.measureString(displayName);
+    final textX = pdfX + (_qrSize.width - textSize.width) / 2;
+    final textY = pdfY + _qrSize.height + _textSpacing;
 
-      final Rect fieldBounds = Rect.fromLTWH(
-        pdfX,
-        pdfY,
-        signatureQrSize.width,
-        signatureQrSize.height + 20,
-      );
+    // Asegurar que el texto no se salga de la página
+    final finalTextX = textX.clamp(0.0, page.size.width - textSize.width).toDouble();
 
-      final PdfSignatureField field = PdfSignatureField(
-        page,
-        signatureFieldName,
-        bounds: fieldBounds,
-        signature: PdfSignature(
-          certificate: certificate,
-          contactInfo: 'firmado@solofirma.app',
-          reason: 'Firmado digitalmente con SoloFirma',
-          locationInfo: 'Ecuador',
-        ),
-      );
+    page.graphics.drawString(
+      displayName,
+      font,
+      brush: PdfBrushes.black,
+      bounds: Rect.fromLTWH(finalTextX, textY, _textMaxWidth, 20),
+      format: PdfStringFormat(
+        alignment: PdfTextAlignment.center, 
+        lineAlignment: PdfVerticalAlignment.top
+      ),
+    );
+  }
 
-      // ***** CORRECCIÓN: ELIMINAR ESTA LÍNEA *****
-      // Esta línea causaba ambos errores. Es innecesaria porque ya dibujamos
-      // la apariencia (QR y texto) manualmente en la página.
-      // field.signature.appearance.graphics = field.graphics;
+  /// Aplicar firma digital
+  void _applyDigitalSignature(
+    PdfDocument document,
+    Uint8List p12Bytes,
+    String password,
+    int pageIndex,
+    double pdfX,
+    double pdfY,
+  ) {
+    final certificate = PdfCertificate(p12Bytes, password);
 
-      document.form.fields.add(field);
+    final field = PdfSignatureField(
+      document.pages[pageIndex],
+      'SoloFirmaSignature_${DateTime.now().millisecondsSinceEpoch}',
+      bounds: Rect.fromLTWH(pdfX, pdfY, _qrSize.width, _qrSize.height + 25),
+      signature: PdfSignature(
+        certificate: certificate,
+        contactInfo: 'firmado@solofirma.app',
+        reason: 'Firmado digitalmente con SoloFirma',
+        locationInfo: 'Ecuador',
+      ),
+    );
 
-      // --- GUARDADO ---
-      final List<int> signedBytes = await document.save();
-      document.dispose();
+    document.form.fields.add(field);
+  }
 
-      final String signedPdfPath =
-          originalPdf.path.replaceAll('.pdf', '-firmado.pdf');
-      final File signedFile = File(signedPdfPath);
+  /// Guardar PDF firmado
+  Future<File> _saveSignedPdf(File originalPdf, PdfDocument document) async {
+    try {
+      final signedBytes = await document.save();
+      
+      final signedPath = originalPdf.path.replaceAll('.pdf', '-firmado.pdf');
+      final signedFile = File(signedPath);
       await signedFile.writeAsBytes(signedBytes);
 
-      print('PDF firmado en: $signedPdfPath');
+      print('PDF firmado guardado en: $signedPath');
       return signedFile;
-    } on Exception catch (e) {
-      print('Error al firmar el documento: $e');
-      return null;
+    } finally {
+      // Siempre liberar memoria
+      document.dispose();
     }
   }
 }
