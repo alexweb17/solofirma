@@ -60,7 +60,7 @@ class SigningService {
       // 3️⃣ Generar QR
       final qrImage = await _generateQrImage('Documento Firmado por SoloFirma');
 
-      // 4️⃣ Calcular posición de firma
+      // 4️⃣ Calcular posición de firma (VERSIÓN OPTIMIZADA)
       final coords = _calculateSignatureCoordinates(document, viewSize, signaturePosition, pageIndex);
 
       // 5️⃣ Obtener nombre del firmante
@@ -126,7 +126,7 @@ class SigningService {
     return PdfBitmap(qrImageData.buffer.asUint8List());
   }
 
-  /// Calcular coordenadas de firma con validación y ajuste preciso
+  /// ✨ VERSIÓN OPTIMIZADA - Calcular coordenadas usando posición relativa
   _SignatureCoords _calculateSignatureCoordinates(
     PdfDocument document,
     Size viewSize,
@@ -143,36 +143,36 @@ class SigningService {
     final page = document.pages[pageIndex];
     final pageSize = page.size;
 
-    print('📐 Calculando coordenadas:');
+    print('📐 Calculando coordenadas (versión optimizada):');
     print('   Vista: ${viewSize.width}x${viewSize.height}');
     print('   Página PDF: ${pageSize.width}x${pageSize.height}');
     print('   Posición táctil: ${signaturePosition.dx}, ${signaturePosition.dy}');
 
-    // Calcular la escala y el offset considerando aspect ratio
-    final scaleX = pageSize.width / viewSize.width;
-    final scaleY = pageSize.height / viewSize.height;
+    // Coordenadas relativas a la vista (0.0 a 1.0)
+    final relativeX = signaturePosition.dx / viewSize.width;
+    final relativeY = signaturePosition.dy / viewSize.height;
     
-    // Usar la misma escala para mantener proporciones (como hace el visor PDF)
-    final scale = scaleX < scaleY ? scaleX : scaleY;
-    
-    // Convertir coordenadas de vista a coordenadas PDF
-    double pdfX = signaturePosition.dx * scale;
-    // Para Y: Flutter usa (0,0) arriba, PDF usa (0,0) abajo
-    double pdfY = pageSize.height - (signaturePosition.dy * scale);
-    
-    // Ajustar para centrar el QR en el punto tocado
+    print('   Coordenadas relativas: X=$relativeX, Y=$relativeY');
+
+    // Pasar a coordenadas PDF
+    double pdfX = relativeX * pageSize.width;
+    double pdfY = pageSize.height - (relativeY * pageSize.height); // Invertir Y
+
+    print('   Coordenadas PDF antes de centrar: $pdfX, $pdfY');
+
+    // Centrar QR y texto en el punto tocado
     pdfX -= _qrSize.width / 2;
-    pdfY -= (_qrSize.height + 25) / 2; // 25 para el texto
-    
-    print('   Escala aplicada: $scale');
-    print('   Posición PDF calculada: $pdfX, $pdfY');
+    pdfY -= (_qrSize.height + 35) / 2; // 35 para dos líneas de texto
 
-    // Limitar dentro de la página con márgenes
+    print('   Coordenadas PDF después de centrar: $pdfX, $pdfY');
+
+    // Márgenes de seguridad
     const margin = 10.0;
-    pdfX = pdfX.clamp(margin, pageSize.width - _qrSize.width - margin).toDouble();
-    pdfY = pdfY.clamp(margin, pageSize.height - _qrSize.height - 25.0 - margin).toDouble();
+    pdfX = pdfX.clamp(margin, pageSize.width - _qrSize.width - margin);
+    pdfY = pdfY.clamp(margin, pageSize.height - _qrSize.height - 35 - margin);
 
-    print('   Posición PDF final: $pdfX, $pdfY');
+    print('   Coordenadas PDF finales: $pdfX, $pdfY');
+    
     return _SignatureCoords(pdfX, pdfY);
   }
 
@@ -348,6 +348,7 @@ class SigningService {
       return null;
     }
   }
+
   String _extractStringFromASN1Object(ASN1Object asn1Object) {
     try {
       if (asn1Object is ASN1PrintableString) {
@@ -421,79 +422,111 @@ class SigningService {
         .trim();
   }
 
-  /// Dibujar QR y nombre con ajuste automático de texto
+  /// Dibujar QR y nombre completo en dos líneas
   void _drawQrAndName(PdfPage page, PdfBitmap qrImage, String signerName, double pdfX, double pdfY) {
     // Dibujar QR
     page.graphics.drawImage(qrImage, Rect.fromLTWH(pdfX, pdfY, _qrSize.width, _qrSize.height));
 
-    // Preparar el texto con ajuste automático
+    // Preparar el texto
     final font = PdfStandardFont(PdfFontFamily.helvetica, _fontSize);
-    String displayName = signerName.trim();
+    String fullName = signerName.trim();
     
-    // Calcular el ancho disponible (un poco más que el QR)
-    final maxWidth = _qrSize.width + 40; // 20px extra a cada lado
-    final textSize = font.measureString(displayName);
+    // Dividir el nombre en dos líneas inteligentemente
+    final nameParts = fullName.split(' ');
+    String line1 = '';
+    String line2 = '';
     
-    print('📝 Procesando nombre: "$displayName"');
-    print('   Ancho del texto: ${textSize.width}');
-    print('   Ancho máximo: $maxWidth');
-
-    // Si el texto es muy ancho, intentar ajustarlo
-    if (textSize.width > maxWidth) {
-      // Opción 1: Intentar con solo nombres y primer apellido
-      final nameParts = displayName.split(' ');
-      if (nameParts.length > 2) {
-        // Tomar primer nombre y primer apellido
-        displayName = '${nameParts[0]} ${nameParts[1]}';
-        final newSize = font.measureString(displayName);
-        
-        if (newSize.width > maxWidth) {
-          // Opción 2: Solo primer nombre y inicial del apellido
-          displayName = '${nameParts[0]} ${nameParts[1][0]}.';
-          final finalSize = font.measureString(displayName);
-          
-          if (finalSize.width > maxWidth) {
-            // Opción 3: Truncar con puntos suspensivos
-            final maxChars = (maxWidth / (textSize.width / displayName.length)).floor() - 3;
-            if (maxChars > 5) {
-              displayName = '${signerName.substring(0, maxChars)}...';
-            } else {
-              displayName = '${signerName.substring(0, 8)}...';
-            }
-          }
-        }
-        print('   Nombre ajustado: "$displayName"');
+    if (nameParts.length <= 2) {
+      // Si son 2 palabras o menos, una por línea
+      line1 = nameParts[0];
+      line2 = nameParts.length > 1 ? nameParts[1] : '';
+    } else if (nameParts.length == 3) {
+      // Si son 3 palabras, 2 arriba y 1 abajo, o 1 arriba y 2 abajo (la que se vea mejor)
+      final option1Line1 = '${nameParts[0]} ${nameParts[1]}';
+      final option1Line2 = nameParts[2];
+      final option2Line1 = nameParts[0];
+      final option2Line2 = '${nameParts[1]} ${nameParts[2]}';
+      
+      // Elegir la opción más balanceada (longitudes más similares)
+      final diff1 = (option1Line1.length - option1Line2.length).abs();
+      final diff2 = (option2Line1.length - option2Line2.length).abs();
+      
+      if (diff1 <= diff2) {
+        line1 = option1Line1;
+        line2 = option1Line2;
       } else {
-        // Si son solo 2 palabras o menos, truncar directamente
-        final maxChars = (maxWidth / (textSize.width / displayName.length)).floor() - 3;
-        if (maxChars > 5) {
-          displayName = '${displayName.substring(0, maxChars)}...';
-        }
+        line1 = option2Line1;
+        line2 = option2Line2;
       }
+    } else {
+      // Si son 4 o más palabras, dividir por la mitad
+      final midPoint = (nameParts.length / 2).ceil();
+      line1 = nameParts.sublist(0, midPoint).join(' ');
+      line2 = nameParts.sublist(midPoint).join(' ');
     }
 
-    // Calcular posición centrada con el ancho real del texto final
-    final finalTextSize = font.measureString(displayName);
-    final textX = pdfX + (_qrSize.width - finalTextSize.width) / 2;
-    final textY = pdfY + _qrSize.height + _textSpacing;
+    print('📝 Nombre dividido:');
+    print('   Línea 1: "$line1"');
+    print('   Línea 2: "$line2"');
 
+    // Calcular ancho disponible
+    final maxWidth = _qrSize.width + 40; // Un poco más ancho que el QR
+    
+    // Verificar si las líneas caben en el ancho disponible
+    final line1Size = font.measureString(line1);
+    final line2Size = font.measureString(line2);
+    
+    // Si alguna línea es muy larga, usar fuente más pequeña
+    PdfFont finalFont = font;
+    if (line1Size.width > maxWidth || line2Size.width > maxWidth) {
+      finalFont = PdfStandardFont(PdfFontFamily.helvetica, _fontSize - 1);
+      print('   Usando fuente más pequeña');
+    }
+
+    // Calcular posiciones centradas
+    final line1FinalSize = finalFont.measureString(line1);
+    final line2FinalSize = finalFont.measureString(line2);
+    
+    final line1X = pdfX + (_qrSize.width - line1FinalSize.width) / 2;
+    final line2X = pdfX + (_qrSize.width - line2FinalSize.width) / 2;
+    
+    final startY = pdfY + _qrSize.height + _textSpacing;
+    final lineHeight = finalFont.height + 2; // 2px entre líneas
+    
     // Asegurar que el texto no se salga de la página
     final pageWidth = page.size.width;
-    final finalTextX = textX.clamp(5.0, pageWidth - finalTextSize.width - 5.0).toDouble();
+    final finalLine1X = line1X.clamp(5.0, pageWidth - line1FinalSize.width - 5.0).toDouble();
+    final finalLine2X = line2X.clamp(5.0, pageWidth - line2FinalSize.width - 5.0).toDouble();
 
-    print('   Posición final del texto: $finalTextX, $textY');
+    // Dibujar primera línea
+    if (line1.isNotEmpty) {
+      page.graphics.drawString(
+        line1,
+        finalFont,
+        brush: PdfBrushes.black,
+        bounds: Rect.fromLTWH(finalLine1X, startY, maxWidth, lineHeight),
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.center,
+          lineAlignment: PdfVerticalAlignment.top,
+        ),
+      );
+    }
 
-    // Dibujar el texto
-    page.graphics.drawString(
-      displayName,
-      font,
-      brush: PdfBrushes.black,
-      bounds: Rect.fromLTWH(finalTextX, textY, maxWidth + 10, 15),
-      format: PdfStringFormat(
-        alignment: PdfTextAlignment.center,
-        lineAlignment: PdfVerticalAlignment.top,
-      ),
-    );
+    // Dibujar segunda línea
+    if (line2.isNotEmpty) {
+      page.graphics.drawString(
+        line2,
+        finalFont,
+        brush: PdfBrushes.black,
+        bounds: Rect.fromLTWH(finalLine2X, startY + lineHeight, maxWidth, lineHeight),
+        format: PdfStringFormat(
+          alignment: PdfTextAlignment.center,
+          lineAlignment: PdfVerticalAlignment.top,
+        ),
+      );
+    }
+
+    print('   Texto dibujado en posiciones: ($finalLine1X, $startY) y ($finalLine2X, ${startY + lineHeight})');
   }
 
   /// Aplicar firma digital
@@ -510,7 +543,7 @@ class SigningService {
     final field = PdfSignatureField(
       document.pages[pageIndex],
       'SoloFirmaSignature_${DateTime.now().millisecondsSinceEpoch}',
-      bounds: Rect.fromLTWH(pdfX, pdfY, _qrSize.width, _qrSize.height + 25),
+      bounds: Rect.fromLTWH(pdfX, pdfY, _qrSize.width, _qrSize.height + 35),
       signature: PdfSignature(
         certificate: certificate,
         contactInfo: 'firmado@solofirma.app',
