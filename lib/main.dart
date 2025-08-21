@@ -19,6 +19,7 @@ class MyApp extends StatelessWidget {
       // He mantenido tu tema original
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
       ),
       // La lógica de arranque ahora vive en esta pantalla de verificación

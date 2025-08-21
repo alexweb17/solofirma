@@ -21,6 +21,14 @@ class _SignatureCoords {
   _SignatureCoords(this.pdfX, this.pdfY);
 }
 
+class DebugInfo {
+  final String label;
+  final double x;
+  final double y;
+  final Color color;
+  DebugInfo(this.label, this.x, this.y, this.color);
+}
+
 class SigningService {
   final _credentialService = CredentialService();
 
@@ -29,6 +37,9 @@ class SigningService {
   static const double _textSpacing = 5.0;
   static const double _fontSize = 8.0;
   static const String _defaultSignerName = 'Firmante no identificado';
+  
+  // 🐛 MODO DEBUG - Activar para ver marcadores visuales
+  static const bool _debugMode = true;
   
   // Mapa de OIDs comunes a nombres legibles
   static const Map<String, String> _oidToName = {
@@ -41,7 +52,7 @@ class SigningService {
     '1.2.840.113549.1.9.1': 'emailAddress',
   };
 
-  // ===================== MÉTODO PRINCIPAL =====================
+  // ===================== MÉTODO PRINCIPAL CON DEBUG =====================
   Future<File?> signPdf(
     File originalPdf,
     Offset signaturePosition,
@@ -49,44 +60,280 @@ class SigningService {
     int pageIndex,
   ) async {
     PdfDocument? document;
+    PdfDocument? debugDocument;
+    
     try {
+      print('🚀 === INICIANDO PROCESO DE FIRMA ===');
+      print('📂 Archivo: ${originalPdf.path}');
+      print('👆 Posición: ${signaturePosition.dx}, ${signaturePosition.dy}');
+      print('📱 Tamaño vista: ${viewSize.width} x ${viewSize.height}');
+      
+      // 🐛 CREAR PDF DEBUG PRIMERO (antes de modificar nada)
+      if (_debugMode) {
+        final pdfBytes = await originalPdf.readAsBytes();
+        debugDocument = PdfDocument(inputBytes: pdfBytes);
+        await _createDebugVersion(debugDocument, viewSize, signaturePosition, pageIndex, originalPdf);
+        debugDocument.dispose(); // Liberar inmediatamente
+        debugDocument = null;
+      }
+
       // 1️⃣ Cargar credenciales
       final p12Data = await _loadP12Credentials();
+      print('✅ Credenciales cargadas');
 
-      // 2️⃣ Leer PDF
+      // 2️⃣ Leer PDF (nueva instancia para firma)
       final pdfBytes = await originalPdf.readAsBytes();
       document = PdfDocument(inputBytes: pdfBytes);
+      print('✅ PDF cargado para firma');
 
       // 3️⃣ Generar QR
       final qrImage = await _generateQrImage('Documento Firmado por SoloFirma');
+      print('✅ QR generado');
 
-      // 4️⃣ Calcular posición de firma (VERSIÓN OPTIMIZADA)
+      // 4️⃣ Calcular posición
       final coords = _calculateSignatureCoordinates(document, viewSize, signaturePosition, pageIndex);
+      print('✅ Coordenadas calculadas: (${coords.pdfX}, ${coords.pdfY})');
 
       // 5️⃣ Obtener nombre del firmante
       final signerName = _extractSignerName(p12Data.bytes, p12Data.password);
+      print('✅ Nombre firmante: $signerName');
 
       // 6️⃣ Dibujar QR y nombre
       _drawQrAndName(document.pages[pageIndex], qrImage, signerName, coords.pdfX, coords.pdfY);
+      print('✅ QR y nombre dibujados');
 
       // 7️⃣ Aplicar firma digital
       _applyDigitalSignature(document, p12Data.bytes, p12Data.password, pageIndex, coords.pdfX, coords.pdfY);
+      print('✅ Firma digital aplicada');
 
       // 8️⃣ Guardar PDF firmado
       final signedFile = await _saveSignedPdf(originalPdf, document);
+      print('✅ PDF firmado guardado');
 
       return signedFile;
     } catch (e) {
-      print('Error al firmar el documento: $e');
-      // Asegurar que se libere la memoria incluso si hay error
+      print('❌ Error al firmar el documento: $e');
       document?.dispose();
+      debugDocument?.dispose();
       return null;
     }
   }
 
-  // ===================== MÉTODOS PRIVADOS =====================
+  // 🐛 ===================== MÉTODO DEBUG SEPARADO =====================
+  Future<void> _createDebugVersion(
+    PdfDocument debugDoc,
+    Size viewSize,
+    Offset signaturePosition,
+    int pageIndex,
+    File originalFile,
+  ) async {
+    try {
+      print('🐛 === CREANDO VERSIÓN DEBUG ===');
+      
+      final page = debugDoc.pages[pageIndex];
+      final pageSize = page.size;
+      
+      print('📱 Vista: ${viewSize.width} x ${viewSize.height}');
+      print('📄 PDF: ${pageSize.width} x ${pageSize.height}');
+      print('👆 Toque: (${signaturePosition.dx}, ${signaturePosition.dy})');
 
-  /// Cargar archivo P12 y contraseña con manejo robusto de errores
+      // Lista de puntos para marcar con diferentes métodos
+      final debugPoints = <DebugInfo>[
+        // Método 1: Coordenadas directas 
+        DebugInfo('DIRECTO', signaturePosition.dx, pageSize.height - signaturePosition.dy, Colors.red),
+        
+        // Método 2: Escala proporcional
+        DebugInfo('ESCALA', 
+          (signaturePosition.dx * pageSize.width) / viewSize.width,
+          pageSize.height - (signaturePosition.dy * pageSize.height) / viewSize.height,
+          Colors.blue
+        ),
+        
+        // Método 3: Coordenadas relativas
+        DebugInfo('RELATIVO', 
+          (signaturePosition.dx / viewSize.width) * pageSize.width,
+          pageSize.height - ((signaturePosition.dy / viewSize.height) * pageSize.height),
+          Colors.green
+        ),
+        
+        // Método 4: Punto central de página (referencia)
+        DebugInfo('CENTRO', pageSize.width / 2, pageSize.height / 2, Colors.orange),
+      ];
+
+      // Dibujar grid de referencia primero
+      _drawReferenceGrid(page, pageSize);
+      
+      // Dibujar marcadores de debug
+      for (int i = 0; i < debugPoints.length; i++) {
+        final point = debugPoints[i];
+        _drawDebugMarker(page, point, i);
+        print('🎯 ${point.label}: (${point.x.toStringAsFixed(1)}, ${point.y.toStringAsFixed(1)})');
+      }
+
+      // Dibujar información en la esquina
+      _drawDebugInfo(page, viewSize, pageSize, signaturePosition);
+      
+      // Guardar versión debug
+      final debugBytes = await debugDoc.save();
+      final debugPath = originalFile.path.replaceAll('.pdf', '_DEBUG.pdf');
+      final debugFile = File(debugPath);
+      await debugFile.writeAsBytes(debugBytes);
+      
+      print('🐛 ✅ Archivo DEBUG guardado en: $debugPath');
+      print('🐛 === FIN DEBUG ===\n');
+      
+    } catch (e) {
+      print('❌ Error creando versión debug: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
+    }
+  }
+
+  // Dibujar información debug en la esquina
+  void _drawDebugInfo(PdfPage page, Size viewSize, Size pageSize, Offset position) {
+    final font = PdfStandardFont(PdfFontFamily.helvetica, 8);
+    final info = [
+      'DEBUG INFO:',
+      'Vista: ${viewSize.width.toInt()} x ${viewSize.height.toInt()}',
+      'PDF: ${pageSize.width.toInt()} x ${pageSize.height.toInt()}',
+      'Toque: ${position.dx.toInt()}, ${position.dy.toInt()}',
+      '',
+      'MARCADORES:',
+      '🔴 ROJO = Directo',
+      '🔵 AZUL = Escala',
+      '🟢 VERDE = Relativo', 
+      '🟠 NARANJA = Centro',
+    ];
+
+    double y = 20;
+    for (final line in info) {
+      page.graphics.drawString(
+        line,
+        font,
+        brush: PdfBrushes.black,
+        bounds: Rect.fromLTWH(20, y, 200, 15),
+      );
+      y += 12;
+    }
+  }
+
+  // Dibujar marcador de debug
+  void _drawDebugMarker(PdfPage page, DebugInfo debug, int index) {
+    // Convertir Color de Flutter a PdfBrush
+    PdfBrush brush;
+    switch (debug.color) {
+      case Colors.red:
+        brush = PdfBrushes.red;
+        break;
+      case Colors.blue:
+        brush = PdfBrushes.blue;
+        break;
+      case Colors.green:
+        brush = PdfBrushes.green;
+        break;
+      case Colors.orange:
+        brush = PdfBrushes.orange;
+        break;
+      default:
+        brush = PdfBrushes.black;
+    }
+    
+    // Dibujar círculo más grande
+    page.graphics.drawEllipse(
+      Rect.fromLTWH(debug.x - 8, debug.y - 8, 16, 16),
+      brush: brush,
+    );
+    
+    // Dibujar etiqueta
+    final font = PdfStandardFont(PdfFontFamily.helvetica, 8);
+    page.graphics.drawString(
+      debug.label,
+      font,
+      brush: brush,
+      bounds: Rect.fromLTWH(debug.x + 12, debug.y - 4, 60, 12),
+    );
+    
+    // Dibujar cruz centrada
+    page.graphics.drawLine(
+      PdfPens.black,
+      Offset(debug.x - 6, debug.y),
+      Offset(debug.x + 6, debug.y),
+    );
+    page.graphics.drawLine(
+      PdfPens.black,
+      Offset(debug.x, debug.y - 6),
+      Offset(debug.x, debug.y + 6),
+    );
+
+    // Dibujar coordenadas
+    page.graphics.drawString(
+      '(${debug.x.toInt()},${debug.y.toInt()})',
+      PdfStandardFont(PdfFontFamily.helvetica, 6),
+      brush: PdfBrushes.black,
+      bounds: Rect.fromLTWH(debug.x + 12, debug.y + 8, 60, 10),
+    );
+  }
+
+  // Dibujar grid de referencia
+  void _drawReferenceGrid(PdfPage page, Size pageSize) {
+    final gridPen = PdfPen(PdfColor(220, 220, 220), width: 0.3);
+    final font = PdfStandardFont(PdfFontFamily.helvetica, 6);
+    
+    // Líneas verticales cada 100 puntos
+    for (double x = 0; x <= pageSize.width; x += 100) {
+      page.graphics.drawLine(gridPen, Offset(x, 0), Offset(x, pageSize.height));
+      if (x > 0 && x < pageSize.width - 50) {
+        page.graphics.drawString('${x.toInt()}', font, 
+          brush: PdfBrushes.gray,
+          bounds: Rect.fromLTWH(x + 2, 2, 30, 10));
+      }
+    }
+    
+    // Líneas horizontales cada 100 puntos
+    for (double y = 0; y <= pageSize.height; y += 100) {
+      page.graphics.drawLine(gridPen, Offset(0, y), Offset(pageSize.width, y));
+      if (y > 0 && y < pageSize.height - 20) {
+        page.graphics.drawString('${y.toInt()}', font,
+          brush: PdfBrushes.gray,
+          bounds: Rect.fromLTWH(2, y + 2, 30, 10));
+      }
+    }
+  }
+
+  // ===================== MÉTODO SIMPLE PARA TESTING =====================
+  _SignatureCoords _calculateSignatureCoordinates(
+    PdfDocument document,
+    Size viewSize,
+    Offset signaturePosition,
+    int pageIndex,
+  ) {
+    final page = document.pages[pageIndex];
+    final pageSize = page.size;
+
+    // Usar método relativo (el que suele funcionar mejor)
+    final relativeX = signaturePosition.dx / viewSize.width;
+    final relativeY = signaturePosition.dy / viewSize.height;
+    
+    double pdfX = relativeX * pageSize.width;
+    double pdfY = pageSize.height - (relativeY * pageSize.height);
+    
+    // Centrar el QR en el punto
+    pdfX -= _qrSize.width / 2;
+    pdfY -= (_qrSize.height + 35) / 2;
+
+    // Ajuste vertical para corregir el desfase de ~50px reportado
+    pdfY += 10;
+    pdfX += 100;
+    
+    // Aplicar márgenes
+    const margin = 10.0;
+    pdfX = pdfX.clamp(margin, pageSize.width - _qrSize.width - margin);
+    pdfY = pdfY.clamp(margin, pageSize.height - _qrSize.height - 35 - margin);
+    
+    return _SignatureCoords(pdfX, pdfY);
+  }
+
+  // ===================== RESTO DE MÉTODOS =====================
+
   Future<_P12Data> _loadP12Credentials() async {
     try {
       final credentials = await _credentialService.getCredentials();
@@ -112,7 +359,6 @@ class SigningService {
     }
   }
 
-  /// Generar QR como PdfBitmap
   Future<PdfBitmap> _generateQrImage(String data) async {
     final qrImageData = await QrPainter(
       data: data,
@@ -126,57 +372,6 @@ class SigningService {
     return PdfBitmap(qrImageData.buffer.asUint8List());
   }
 
-  /// ✨ VERSIÓN OPTIMIZADA - Calcular coordenadas usando posición relativa
-  _SignatureCoords _calculateSignatureCoordinates(
-    PdfDocument document,
-    Size viewSize,
-    Offset signaturePosition,
-    int pageIndex,
-  ) {
-    if (pageIndex < 0 || pageIndex >= document.pages.count) {
-      throw Exception('Página $pageIndex no válida. Páginas disponibles: 0-${document.pages.count - 1}');
-    }
-    if (viewSize.width <= 0 || viewSize.height <= 0) {
-      throw Exception('Tamaño de vista inválido: $viewSize');
-    }
-
-    final page = document.pages[pageIndex];
-    final pageSize = page.size;
-
-    print('📐 Calculando coordenadas (versión optimizada):');
-    print('   Vista: ${viewSize.width}x${viewSize.height}');
-    print('   Página PDF: ${pageSize.width}x${pageSize.height}');
-    print('   Posición táctil: ${signaturePosition.dx}, ${signaturePosition.dy}');
-
-    // Coordenadas relativas a la vista (0.0 a 1.0)
-    final relativeX = signaturePosition.dx / viewSize.width;
-    final relativeY = signaturePosition.dy / viewSize.height;
-    
-    print('   Coordenadas relativas: X=$relativeX, Y=$relativeY');
-
-    // Pasar a coordenadas PDF
-    double pdfX = relativeX * pageSize.width;
-    double pdfY = pageSize.height - (relativeY * pageSize.height); // Invertir Y
-
-    print('   Coordenadas PDF antes de centrar: $pdfX, $pdfY');
-
-    // Centrar QR y texto en el punto tocado
-    pdfX -= _qrSize.width / 2;
-    pdfY -= (_qrSize.height + 35) / 2; // 35 para dos líneas de texto
-
-    print('   Coordenadas PDF después de centrar: $pdfX, $pdfY');
-
-    // Márgenes de seguridad
-    const margin = 10.0;
-    pdfX = pdfX.clamp(margin, pageSize.width - _qrSize.width - margin);
-    pdfY = pdfY.clamp(margin, pageSize.height - _qrSize.height - 35 - margin);
-
-    print('   Coordenadas PDF finales: $pdfX, $pdfY');
-    
-    return _SignatureCoords(pdfX, pdfY);
-  }
-
-  /// Extraer nombre del firmante del P12 - VERSIÓN ROBUSTA CON ASN.1
   String _extractSignerName(Uint8List p12Bytes, String password) {
     try {
       print('🔍 Iniciando extracción robusta de nombre del certificado...');
@@ -240,7 +435,6 @@ class SigningService {
     }
   }
 
-  /// Parsea un certificado PEM para extraer el Common Name (CN), el SubjectDN y el IssuerDN
   Map<String, String>? _parseCertificateDetails(String pem) {
     try {
       final bytes = base64.decode(pem
@@ -252,11 +446,6 @@ class SigningService {
       final topLevelSeq = asn1Parser.nextObject() as ASN1Sequence;
       final certSeq = topLevelSeq.elements[0] as ASN1Sequence;
 
-      print('🔍 Estructura del certificado - elementos: ${certSeq.elements.length}');
-      for (int i = 0; i < certSeq.elements.length && i < 10; i++) {
-        print('  [$i]: ${certSeq.elements[i].runtimeType}');
-      }
-
       // Buscar las secuencias de Distinguished Names dinámicamente
       ASN1Sequence? issuerSeq;
       ASN1Sequence? subjectSeq;
@@ -266,26 +455,20 @@ class SigningService {
         if (element is ASN1Sequence && _isDistinguishedNameSequence(element)) {
           if (issuerSeq == null) {
             issuerSeq = element;
-            print('✅ Issuer encontrado en posición $i');
           } else if (subjectSeq == null) {
             subjectSeq = element;
-            print('✅ Subject encontrado en posición $i');
             break;
           }
         }
       }
 
       if (issuerSeq == null || subjectSeq == null) {
-        print('❌ No se pudieron encontrar las secuencias issuer/subject');
         return null;
       }
 
-      String? commonName;
       final subjectDN = _distinguishedNameToString(subjectSeq);
       final issuerDN = _distinguishedNameToString(issuerSeq);
-
-      // Extraer específicamente el Common Name (CN) del Sujeto
-      commonName = _extractCommonNameFromDN(subjectSeq);
+      final commonName = _extractCommonNameFromDN(subjectSeq);
 
       return {
         'cn': _cleanSignerName(commonName ?? ''),
@@ -293,24 +476,19 @@ class SigningService {
         'issuerDN': issuerDN,
       };
     } catch (e) {
-      print('⚠️ Error al parsear un certificado: $e');
       return null;
     }
   }
 
-  /// Verifica si una secuencia ASN.1 es un Distinguished Name
   bool _isDistinguishedNameSequence(ASN1Sequence sequence) {
     try {
-      // Un DN típicamente contiene varios SET elements
       if (sequence.elements.isEmpty) return false;
       
-      // Verificar que los primeros elementos sean ASN1Set
       for (int i = 0; i < sequence.elements.length && i < 3; i++) {
         if (sequence.elements[i] is! ASN1Set) {
           return false;
         }
         
-        // Verificar que cada SET contenga una secuencia con OID
         final set = sequence.elements[i] as ASN1Set;
         if (set.elements.isEmpty || set.elements.first is! ASN1Sequence) {
           return false;
@@ -328,7 +506,6 @@ class SigningService {
     }
   }
 
-  /// Extrae el Common Name de una secuencia Distinguished Name
   String? _extractCommonNameFromDN(ASN1Sequence dnSequence) {
     try {
       for (var element in dnSequence.elements) {
@@ -344,7 +521,6 @@ class SigningService {
       }
       return null;
     } catch (e) {
-      print('⚠️ Error al extraer CN: $e');
       return null;
     }
   }
@@ -358,27 +534,20 @@ class SigningService {
       } else if (asn1Object is ASN1IA5String) {
         return asn1Object.stringValue;
       } else {
-        // Para otros tipos, intentar acceder a propiedades comunes
-        // usando reflection dinámica o fallback seguro
         final objectStr = asn1Object.toString();
-        
-        // Intentar extraer el valor si tiene una estructura conocida
         if (objectStr.contains(':')) {
           final parts = objectStr.split(':');
           if (parts.length > 1) {
             return parts.last.trim();
           }
         }
-        
         return objectStr;
       }
     } catch (e) {
-      print('⚠️ Error al extraer string de objeto ASN.1: $e');
       return asn1Object.toString();
     }
   }
 
-  /// Convierte una secuencia ASN.1 de un Distinguished Name a un String legible
   String _distinguishedNameToString(ASN1Sequence dnSequence) {
     try {
       final parts = <String>[];
@@ -401,135 +570,39 @@ class SigningService {
             }
           }
         } catch (elementError) {
-          print('⚠️ Error procesando elemento DN: $elementError');
-          continue; // Continuar con el siguiente elemento
+          continue;
         }
       }
       
       return parts.join(', ');
     } catch (e) {
-      print('⚠️ Error al convertir Distinguished Name: $e');
       return '';
     }
   }
 
-  /// Limpiar y formatear el nombre del firmante
   String _cleanSignerName(String name) {
     return name
         .trim()
-        .replaceAll(RegExp(r'\s+'), ' ') // Normalizar espacios
-        .replaceAll(RegExp(r'[^\w\s\u00C0-\u017F\-\.]'), '') // Mantener acentos, guiones y puntos
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'[^\w\s\u00C0-\u017F\-\.]'), '')
         .trim();
   }
 
-  /// Dibujar QR y nombre completo en dos líneas
   void _drawQrAndName(PdfPage page, PdfBitmap qrImage, String signerName, double pdfX, double pdfY) {
     // Dibujar QR
     page.graphics.drawImage(qrImage, Rect.fromLTWH(pdfX, pdfY, _qrSize.width, _qrSize.height));
 
-    // Preparar el texto
+    // Dibujar nombre simplificado
     final font = PdfStandardFont(PdfFontFamily.helvetica, _fontSize);
-    String fullName = signerName.trim();
-    
-    // Dividir el nombre en dos líneas inteligentemente
-    final nameParts = fullName.split(' ');
-    String line1 = '';
-    String line2 = '';
-    
-    if (nameParts.length <= 2) {
-      // Si son 2 palabras o menos, una por línea
-      line1 = nameParts[0];
-      line2 = nameParts.length > 1 ? nameParts[1] : '';
-    } else if (nameParts.length == 3) {
-      // Si son 3 palabras, 2 arriba y 1 abajo, o 1 arriba y 2 abajo (la que se vea mejor)
-      final option1Line1 = '${nameParts[0]} ${nameParts[1]}';
-      final option1Line2 = nameParts[2];
-      final option2Line1 = nameParts[0];
-      final option2Line2 = '${nameParts[1]} ${nameParts[2]}';
-      
-      // Elegir la opción más balanceada (longitudes más similares)
-      final diff1 = (option1Line1.length - option1Line2.length).abs();
-      final diff2 = (option2Line1.length - option2Line2.length).abs();
-      
-      if (diff1 <= diff2) {
-        line1 = option1Line1;
-        line2 = option1Line2;
-      } else {
-        line1 = option2Line1;
-        line2 = option2Line2;
-      }
-    } else {
-      // Si son 4 o más palabras, dividir por la mitad
-      final midPoint = (nameParts.length / 2).ceil();
-      line1 = nameParts.sublist(0, midPoint).join(' ');
-      line2 = nameParts.sublist(midPoint).join(' ');
-    }
-
-    print('📝 Nombre dividido:');
-    print('   Línea 1: "$line1"');
-    print('   Línea 2: "$line2"');
-
-    // Calcular ancho disponible
-    final maxWidth = _qrSize.width + 40; // Un poco más ancho que el QR
-    
-    // Verificar si las líneas caben en el ancho disponible
-    final line1Size = font.measureString(line1);
-    final line2Size = font.measureString(line2);
-    
-    // Si alguna línea es muy larga, usar fuente más pequeña
-    PdfFont finalFont = font;
-    if (line1Size.width > maxWidth || line2Size.width > maxWidth) {
-      finalFont = PdfStandardFont(PdfFontFamily.helvetica, _fontSize - 1);
-      print('   Usando fuente más pequeña');
-    }
-
-    // Calcular posiciones centradas
-    final line1FinalSize = finalFont.measureString(line1);
-    final line2FinalSize = finalFont.measureString(line2);
-    
-    final line1X = pdfX + (_qrSize.width - line1FinalSize.width) / 2;
-    final line2X = pdfX + (_qrSize.width - line2FinalSize.width) / 2;
-    
-    final startY = pdfY + _qrSize.height + _textSpacing;
-    final lineHeight = finalFont.height + 2; // 2px entre líneas
-    
-    // Asegurar que el texto no se salga de la página
-    final pageWidth = page.size.width;
-    final finalLine1X = line1X.clamp(5.0, pageWidth - line1FinalSize.width - 5.0).toDouble();
-    final finalLine2X = line2X.clamp(5.0, pageWidth - line2FinalSize.width - 5.0).toDouble();
-
-    // Dibujar primera línea
-    if (line1.isNotEmpty) {
-      page.graphics.drawString(
-        line1,
-        finalFont,
-        brush: PdfBrushes.black,
-        bounds: Rect.fromLTWH(finalLine1X, startY, maxWidth, lineHeight),
-        format: PdfStringFormat(
-          alignment: PdfTextAlignment.center,
-          lineAlignment: PdfVerticalAlignment.top,
-        ),
-      );
-    }
-
-    // Dibujar segunda línea
-    if (line2.isNotEmpty) {
-      page.graphics.drawString(
-        line2,
-        finalFont,
-        brush: PdfBrushes.black,
-        bounds: Rect.fromLTWH(finalLine2X, startY + lineHeight, maxWidth, lineHeight),
-        format: PdfStringFormat(
-          alignment: PdfTextAlignment.center,
-          lineAlignment: PdfVerticalAlignment.top,
-        ),
-      );
-    }
-
-    print('   Texto dibujado en posiciones: ($finalLine1X, $startY) y ($finalLine2X, ${startY + lineHeight})');
+    page.graphics.drawString(
+      signerName,
+      font,
+      brush: PdfBrushes.black,
+      bounds: Rect.fromLTWH(pdfX, pdfY + _qrSize.height + _textSpacing, _qrSize.width + 40, 20),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+    );
   }
 
-  /// Aplicar firma digital
   void _applyDigitalSignature(
     PdfDocument document,
     Uint8List p12Bytes,
@@ -555,7 +628,6 @@ class SigningService {
     document.form.fields.add(field);
   }
 
-  /// Guardar PDF firmado
   Future<File> _saveSignedPdf(File originalPdf, PdfDocument document) async {
     try {
       final signedBytes = await document.save();
@@ -564,10 +636,9 @@ class SigningService {
       final signedFile = File(signedPath);
       await signedFile.writeAsBytes(signedBytes);
 
-      print('PDF firmado guardado en: $signedPath');
+      print('✅ PDF firmado guardado en: $signedPath');
       return signedFile;
     } finally {
-      // Siempre liberar memoria
       document.dispose();
     }
   }
