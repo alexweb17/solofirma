@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:solofirma/screens/signing_success_screen.dart';
 import 'package:solofirma/services/signing_services.dart';
-import 'package:solofirma/widgets/draggable_signature_box.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class PdfPreviewScreen extends StatefulWidget {
@@ -15,16 +15,30 @@ class PdfPreviewScreen extends StatefulWidget {
 }
 
 class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
+  final PdfViewerController _pdfViewerController = PdfViewerController();
+  PdfDocument? _pdfDocument;
+
   Offset? _signaturePosition;
   bool _isSigning = false;
-
-  final PdfViewerController _pdfViewerController = PdfViewerController();
-  Size? _pdfViewSize;
-  // ***** CAMBIO 1: Variable de estado para la página actual *****
   int _currentPageIndex = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadDocument();
+  }
+
+  Future<void> _loadDocument() async {
+    final doc = PdfDocument(inputBytes: await widget.pdfFile.readAsBytes());
+    if (mounted) {
+      setState(() {
+        _pdfDocument = doc;
+      });
+    }
+  }
+
   Future<void> _signDocument() async {
-    if (_signaturePosition == null || _pdfViewSize == null) return;
+    if (_signaturePosition == null || _pdfDocument == null) return;
 
     setState(() {
       _isSigning = true;
@@ -33,12 +47,10 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
     try {
       final signingService = SigningService();
 
-      // ***** CAMBIO 2: Usamos nuestra variable de estado, que es más precisa *****
       final signedFile = await signingService.signPdf(
         widget.pdfFile,
         _signaturePosition!,
-        _pdfViewSize!,
-        _currentPageIndex, // <-- Usamos la variable de estado
+        _currentPageIndex,
       );
 
       if (signedFile != null && mounted) {
@@ -67,50 +79,66 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ubique el área de la firma'),
+        title: const Text('Toque para ubicar la firma'),
         actions: [
           IconButton(
             icon: const Icon(Icons.check),
-            onPressed: (_signaturePosition == null || _isSigning) ? null : _signDocument,
+            onPressed: (_signaturePosition == null || _isSigning || _pdfDocument == null) ? null : _signDocument,
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              _pdfViewSize = constraints.biggest;
-              
-              return SfPdfViewer.file(
-                widget.pdfFile,
-                controller: _pdfViewerController,
-                // ***** CAMBIO 3: Escuchamos cuando el usuario cambia de página *****
-                onPageChanged: (PdfPageChangedDetails details) {
-                  // Actualizamos nuestra variable de estado.
-                  // Restamos 1 porque el visor cuenta desde 1, y nosotros desde 0.
-                  setState(() {
-                    _currentPageIndex = details.newPageNumber - 1;
-                  });
-                },
-              );
-            },
-          ),
-          DraggableSignatureBox(
-            onPositionChanged: (position) {
-              setState(() {
-                _signaturePosition = position;
-              });
-            },
-          ),
-          if (_isSigning)
-            Container(
-              color: Colors.black.withOpacity(0.5),
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+      body: _pdfDocument == null
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                SfPdfViewer.file(
+                  widget.pdfFile,
+                  controller: _pdfViewerController,
+                  onPageChanged: (PdfPageChangedDetails details) {
+                    setState(() {
+                      _currentPageIndex = details.newPageNumber - 1;
+                      _signaturePosition = null; // Reset signature position on page change
+                    });
+                  },
+                  onTap: (PdfGestureDetails details) {
+                    setState(() {
+                      _signaturePosition = details.pagePosition;
+                    });
+                  },
+                ),
+                if (_signaturePosition != null)
+                  Positioned(
+                    left: _signaturePosition!.dx,
+                    top: _signaturePosition!.dy,
+                    child: Container(
+                      width: 150,
+                      height: 75,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.blue,
+                          width: 2,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.blue.withOpacity(0.2),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Firma Aquí',
+                          style: TextStyle(
+                              color: Colors.blue, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_isSigning)
+                  Container(
+                    color: Colors.black.withOpacity(0.5),
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 }

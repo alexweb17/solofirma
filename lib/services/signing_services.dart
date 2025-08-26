@@ -55,33 +55,22 @@ class SigningService {
   // ===================== MÉTODO PRINCIPAL CON DEBUG =====================
   Future<File?> signPdf(
     File originalPdf,
-    Offset signaturePosition,
-    Size viewSize,
+    Offset pdfOffset,
     int pageIndex,
   ) async {
     PdfDocument? document;
-    PdfDocument? debugDocument;
     
     try {
       print('🚀 === INICIANDO PROCESO DE FIRMA ===');
       print('📂 Archivo: ${originalPdf.path}');
-      print('👆 Posición: ${signaturePosition.dx}, ${signaturePosition.dy}');
-      print('📱 Tamaño vista: ${viewSize.width} x ${viewSize.height}');
+      print('✍️ Posición PDF: ${pdfOffset.dx}, ${pdfOffset.dy}');
+      print('📄 Página: $pageIndex');
       
-      // 🐛 CREAR PDF DEBUG PRIMERO (antes de modificar nada)
-      if (_debugMode) {
-        final pdfBytes = await originalPdf.readAsBytes();
-        debugDocument = PdfDocument(inputBytes: pdfBytes);
-        await _createDebugVersion(debugDocument, viewSize, signaturePosition, pageIndex, originalPdf);
-        debugDocument.dispose(); // Liberar inmediatamente
-        debugDocument = null;
-      }
-
       // 1️⃣ Cargar credenciales
       final p12Data = await _loadP12Credentials();
       print('✅ Credenciales cargadas');
 
-      // 2️⃣ Leer PDF (nueva instancia para firma)
+      // 2️⃣ Leer PDF
       final pdfBytes = await originalPdf.readAsBytes();
       document = PdfDocument(inputBytes: pdfBytes);
       print('✅ PDF cargado para firma');
@@ -90,23 +79,20 @@ class SigningService {
       final qrImage = await _generateQrImage('Documento Firmado por SoloFirma');
       print('✅ QR generado');
 
-      // 4️⃣ Calcular posición
-      final coords = _calculateSignatureCoordinates(document, viewSize, signaturePosition, pageIndex);
-      print('✅ Coordenadas calculadas: (${coords.pdfX}, ${coords.pdfY})');
-
-      // 5️⃣ Obtener nombre del firmante
+      // 4️⃣ Obtener nombre del firmante
       final signerName = _extractSignerName(p12Data.bytes, p12Data.password);
       print('✅ Nombre firmante: $signerName');
 
-      // 6️⃣ Dibujar QR y nombre
-      _drawQrAndName(document.pages[pageIndex], qrImage, signerName, coords.pdfX, coords.pdfY);
+      // 5️⃣ Dibujar QR y nombre
+      final page = document.pages[pageIndex];
+      _drawQrAndName(page, qrImage, signerName, pdfOffset.dx, pdfOffset.dy);
       print('✅ QR y nombre dibujados');
 
-      // 7️⃣ Aplicar firma digital
-      _applyDigitalSignature(document, p12Data.bytes, p12Data.password, pageIndex, coords.pdfX, coords.pdfY);
+      // 6️⃣ Aplicar firma digital
+      _applyDigitalSignature(document, p12Data.bytes, p12Data.password, pageIndex, pdfOffset.dx, pdfOffset.dy);
       print('✅ Firma digital aplicada');
 
-      // 8️⃣ Guardar PDF firmado
+      // 7️⃣ Guardar PDF firmado
       final signedFile = await _saveSignedPdf(originalPdf, document);
       print('✅ PDF firmado guardado');
 
@@ -114,222 +100,8 @@ class SigningService {
     } catch (e) {
       print('❌ Error al firmar el documento: $e');
       document?.dispose();
-      debugDocument?.dispose();
       return null;
     }
-  }
-
-  // 🐛 ===================== MÉTODO DEBUG SEPARADO =====================
-  Future<void> _createDebugVersion(
-    PdfDocument debugDoc,
-    Size viewSize,
-    Offset signaturePosition,
-    int pageIndex,
-    File originalFile,
-  ) async {
-    try {
-      print('🐛 === CREANDO VERSIÓN DEBUG ===');
-      
-      final page = debugDoc.pages[pageIndex];
-      final pageSize = page.size;
-      
-      print('📱 Vista: ${viewSize.width} x ${viewSize.height}');
-      print('📄 PDF: ${pageSize.width} x ${pageSize.height}');
-      print('👆 Toque: (${signaturePosition.dx}, ${signaturePosition.dy})');
-
-      // Lista de puntos para marcar con diferentes métodos
-      final debugPoints = <DebugInfo>[
-        // Método 1: Coordenadas directas 
-        DebugInfo('DIRECTO', signaturePosition.dx, pageSize.height - signaturePosition.dy, Colors.red),
-        
-        // Método 2: Escala proporcional
-        DebugInfo('ESCALA', 
-          (signaturePosition.dx * pageSize.width) / viewSize.width,
-          pageSize.height - (signaturePosition.dy * pageSize.height) / viewSize.height,
-          Colors.blue
-        ),
-        
-        // Método 3: Coordenadas relativas
-        DebugInfo('RELATIVO', 
-          (signaturePosition.dx / viewSize.width) * pageSize.width,
-          pageSize.height - ((signaturePosition.dy / viewSize.height) * pageSize.height),
-          Colors.green
-        ),
-        
-        // Método 4: Punto central de página (referencia)
-        DebugInfo('CENTRO', pageSize.width / 2, pageSize.height / 2, Colors.orange),
-      ];
-
-      // Dibujar grid de referencia primero
-      _drawReferenceGrid(page, pageSize);
-      
-      // Dibujar marcadores de debug
-      for (int i = 0; i < debugPoints.length; i++) {
-        final point = debugPoints[i];
-        _drawDebugMarker(page, point, i);
-        print('🎯 ${point.label}: (${point.x.toStringAsFixed(1)}, ${point.y.toStringAsFixed(1)})');
-      }
-
-      // Dibujar información en la esquina
-      _drawDebugInfo(page, viewSize, pageSize, signaturePosition);
-      
-      // Guardar versión debug
-      final debugBytes = await debugDoc.save();
-      final debugPath = originalFile.path.replaceAll('.pdf', '_DEBUG.pdf');
-      final debugFile = File(debugPath);
-      await debugFile.writeAsBytes(debugBytes);
-      
-      print('🐛 ✅ Archivo DEBUG guardado en: $debugPath');
-      print('🐛 === FIN DEBUG ===\n');
-      
-    } catch (e) {
-      print('❌ Error creando versión debug: $e');
-      print('❌ Stack trace: ${StackTrace.current}');
-    }
-  }
-
-  // Dibujar información debug en la esquina
-  void _drawDebugInfo(PdfPage page, Size viewSize, Size pageSize, Offset position) {
-    final font = PdfStandardFont(PdfFontFamily.helvetica, 8);
-    final info = [
-      'DEBUG INFO:',
-      'Vista: ${viewSize.width.toInt()} x ${viewSize.height.toInt()}',
-      'PDF: ${pageSize.width.toInt()} x ${pageSize.height.toInt()}',
-      'Toque: ${position.dx.toInt()}, ${position.dy.toInt()}',
-      '',
-      'MARCADORES:',
-      '🔴 ROJO = Directo',
-      '🔵 AZUL = Escala',
-      '🟢 VERDE = Relativo', 
-      '🟠 NARANJA = Centro',
-    ];
-
-    double y = 20;
-    for (final line in info) {
-      page.graphics.drawString(
-        line,
-        font,
-        brush: PdfBrushes.black,
-        bounds: Rect.fromLTWH(20, y, 200, 15),
-      );
-      y += 12;
-    }
-  }
-
-  // Dibujar marcador de debug
-  void _drawDebugMarker(PdfPage page, DebugInfo debug, int index) {
-    // Convertir Color de Flutter a PdfBrush
-    PdfBrush brush;
-    switch (debug.color) {
-      case Colors.red:
-        brush = PdfBrushes.red;
-        break;
-      case Colors.blue:
-        brush = PdfBrushes.blue;
-        break;
-      case Colors.green:
-        brush = PdfBrushes.green;
-        break;
-      case Colors.orange:
-        brush = PdfBrushes.orange;
-        break;
-      default:
-        brush = PdfBrushes.black;
-    }
-    
-    // Dibujar círculo más grande
-    page.graphics.drawEllipse(
-      Rect.fromLTWH(debug.x - 8, debug.y - 8, 16, 16),
-      brush: brush,
-    );
-    
-    // Dibujar etiqueta
-    final font = PdfStandardFont(PdfFontFamily.helvetica, 8);
-    page.graphics.drawString(
-      debug.label,
-      font,
-      brush: brush,
-      bounds: Rect.fromLTWH(debug.x + 12, debug.y - 4, 60, 12),
-    );
-    
-    // Dibujar cruz centrada
-    page.graphics.drawLine(
-      PdfPens.black,
-      Offset(debug.x - 6, debug.y),
-      Offset(debug.x + 6, debug.y),
-    );
-    page.graphics.drawLine(
-      PdfPens.black,
-      Offset(debug.x, debug.y - 6),
-      Offset(debug.x, debug.y + 6),
-    );
-
-    // Dibujar coordenadas
-    page.graphics.drawString(
-      '(${debug.x.toInt()},${debug.y.toInt()})',
-      PdfStandardFont(PdfFontFamily.helvetica, 6),
-      brush: PdfBrushes.black,
-      bounds: Rect.fromLTWH(debug.x + 12, debug.y + 8, 60, 10),
-    );
-  }
-
-  // Dibujar grid de referencia
-  void _drawReferenceGrid(PdfPage page, Size pageSize) {
-    final gridPen = PdfPen(PdfColor(220, 220, 220), width: 0.3);
-    final font = PdfStandardFont(PdfFontFamily.helvetica, 6);
-    
-    // Líneas verticales cada 100 puntos
-    for (double x = 0; x <= pageSize.width; x += 100) {
-      page.graphics.drawLine(gridPen, Offset(x, 0), Offset(x, pageSize.height));
-      if (x > 0 && x < pageSize.width - 50) {
-        page.graphics.drawString('${x.toInt()}', font, 
-          brush: PdfBrushes.gray,
-          bounds: Rect.fromLTWH(x + 2, 2, 30, 10));
-      }
-    }
-    
-    // Líneas horizontales cada 100 puntos
-    for (double y = 0; y <= pageSize.height; y += 100) {
-      page.graphics.drawLine(gridPen, Offset(0, y), Offset(pageSize.width, y));
-      if (y > 0 && y < pageSize.height - 20) {
-        page.graphics.drawString('${y.toInt()}', font,
-          brush: PdfBrushes.gray,
-          bounds: Rect.fromLTWH(2, y + 2, 30, 10));
-      }
-    }
-  }
-
-  // ===================== MÉTODO SIMPLE PARA TESTING =====================
-  _SignatureCoords _calculateSignatureCoordinates(
-    PdfDocument document,
-    Size viewSize,
-    Offset signaturePosition,
-    int pageIndex,
-  ) {
-    final page = document.pages[pageIndex];
-    final pageSize = page.size;
-
-    // Usar método relativo (el que suele funcionar mejor)
-    final relativeX = signaturePosition.dx / viewSize.width;
-    final relativeY = signaturePosition.dy / viewSize.height;
-    
-    double pdfX = relativeX * pageSize.width;
-    double pdfY = pageSize.height - (relativeY * pageSize.height);
-    
-    // Centrar el QR en el punto
-    pdfX -= _qrSize.width / 2;
-    pdfY -= (_qrSize.height + 35) / 2;
-
-    // Ajuste vertical para corregir el desfase de ~50px reportado
-    pdfY += 10;
-    pdfX += 100;
-    
-    // Aplicar márgenes
-    const margin = 10.0;
-    pdfX = pdfX.clamp(margin, pageSize.width - _qrSize.width - margin);
-    pdfY = pdfY.clamp(margin, pageSize.height - _qrSize.height - 35 - margin);
-    
-    return _SignatureCoords(pdfX, pdfY);
   }
 
   // ===================== RESTO DE MÉTODOS =====================
