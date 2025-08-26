@@ -6,7 +6,7 @@ version: 1.0.0+1
 
 environment:
   # Rango de SDK actualizado para ser compatible con Flutter moderno
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.8.1 <4.0.0'
 
 dependencies:
   flutter:

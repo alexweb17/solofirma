@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
-import 'package:solofirma/screens/pdf_preview_screen.dart'; // Asegúrate de que la ruta sea correcta
+import 'package:solofirma/screens/pdf_preview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _setupReceiveSharing();
+    _setupReceiveIntent();
   }
 
   @override
@@ -28,25 +28,41 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _setupReceiveSharing() {
-    // CASO 1: La app ya está abierta.
-    _intentDataStreamSubscription =
-        ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
-      if (value.isNotEmpty) {
-        _navigateToPreview(value.first.path);
-      }
-    }, onError: (err) {
+  void _setupReceiveIntent() {
+    // CASO 1: La app ya está abierta y recibe archivos compartidos
+    _intentDataStreamSubscription = ReceiveSharingIntent.instance.getMediaStream()
+        .listen(_handleSharedFiles, onError: (err) {
       if (kDebugMode) {
         print("Error en getMediaStream: $err");
       }
     });
 
-    // CASO 2: La app está cerrada y se abre con un archivo.
-    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
-      if (value.isNotEmpty) {
-        _navigateToPreview(value.first.path);
+    // CASO 2: La app está cerrada y se abre con un archivo compartido
+    ReceiveSharingIntent.instance.getInitialMedia().then(_handleSharedFiles);
+  }
+
+  void _handleSharedFiles(List<SharedMediaFile> sharedFiles) {
+    if (sharedFiles.isNotEmpty) {
+      // Buscar archivos PDF en los archivos compartidos
+      final pdfFile = sharedFiles.firstWhere(
+        (file) => file.path.toLowerCase().endsWith('.pdf'),
+        orElse: () => sharedFiles.first, // Si no hay PDF, tomar el primero
+      );
+      
+      if (pdfFile.path.toLowerCase().endsWith('.pdf')) {
+        _navigateToPreview(pdfFile.path);
+      } else {
+        // Mostrar mensaje si no es un PDF
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Solo se pueden abrir archivos PDF'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
-    });
+    }
   }
 
   void _navigateToPreview(String filePath) {
@@ -68,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (result != null && result.files.single.path != null) {
-      // **LÍNEA CORREGIDA:** Ya no creamos la variable 'pdfFile' aquí.
       if (!mounted) return;
       _navigateToPreview(result.files.single.path!);
     }
@@ -76,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Tu UI se mantiene igual
     return Scaffold(
       appBar: AppBar(
         title: const Text('SoloFirma - Principal'),
