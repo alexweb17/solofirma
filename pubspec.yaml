@@ -28,6 +28,10 @@ dependencies:
   receive_sharing_intent: ^1.8.1
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.6
+  provider: ^6.1.5+1
+  async: ^2.13.0
+  in_app_purchase: ^3.2.3
+  shared_preferences: ^2.5.3
 
 
 dev_dependencies:
