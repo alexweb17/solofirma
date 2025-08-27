@@ -19,6 +19,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   PdfDocument? _pdfDocument;
 
   Offset? _signaturePosition;
+  Offset? _guideBoxPosition;
   bool _isSigning = false;
   int _currentPageIndex = 0;
 
@@ -98,18 +99,20 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
                     setState(() {
                       _currentPageIndex = details.newPageNumber - 1;
                       _signaturePosition = null; // Reset signature position on page change
+                      _guideBoxPosition = null;
                     });
                   },
                   onTap: (PdfGestureDetails details) {
                     setState(() {
                       _signaturePosition = details.pagePosition;
+                      _guideBoxPosition = details.position;
                     });
                   },
                 ),
-                if (_signaturePosition != null)
+                if (_guideBoxPosition != null)
                   Positioned(
-                    left: _signaturePosition!.dx,
-                    top: _signaturePosition!.dy,
+                    left: _guideBoxPosition!.dx,
+                    top: _guideBoxPosition!.dy,
                     child: Container(
                       width: 150,
                       height: 75,
