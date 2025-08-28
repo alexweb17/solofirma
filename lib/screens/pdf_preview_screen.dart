@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:solofirma/screens/purchase_screen.dart';
 import 'package:solofirma/screens/signing_success_screen.dart';
+import 'package:solofirma/services/purchase_services.dart';
 import 'package:solofirma/services/signing_services.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -41,38 +44,51 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   Future<void> _signDocument() async {
     if (_signaturePosition == null || _pdfDocument == null) return;
 
-    setState(() {
-      _isSigning = true;
-    });
+    final purchaseService = Provider.of<PurchaseService>(context, listen: false);
 
-    try {
-      final signingService = SigningService();
-
-      final signedFile = await signingService.signPdf(
-        widget.pdfFile,
-        _signaturePosition!,
-        _currentPageIndex,
-      );
-
-      if (signedFile != null && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SigningSuccessScreen(signedPdfFile: signedFile),
-          ),
-        );
-      } else {
-        throw Exception('No se pudo firmar el archivo.');
-      }
-    } catch (e) {
+    if (purchaseService.canUserSign()) {
       setState(() {
-        _isSigning = false;
+        _isSigning = true;
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al firmar: ${e.toString()}')),
+
+      try {
+        final signingService = SigningService();
+
+        final signedFile = await signingService.signPdf(
+          widget.pdfFile,
+          _signaturePosition!,
+          _currentPageIndex,
         );
+
+        if (signedFile != null && mounted) {
+          // Incrementar contador solo si la firma fue exitosa
+          await purchaseService.incrementSignatureCount();
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SigningSuccessScreen(signedPdfFile: signedFile),
+            ),
+          );
+        } else {
+          throw Exception('No se pudo firmar el archivo.');
+        }
+      } catch (e) {
+        setState(() {
+          _isSigning = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al firmar: ${e.toString()}')),
+          );
+        }
       }
+    } else {
+      // Si no puede firmar, mostrar la pantalla de compra
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const PurchaseScreen()),
+      );
     }
   }
 
