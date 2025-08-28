@@ -50,7 +50,7 @@ class PurchaseScreen extends StatelessWidget {
   }
 
   Widget _buildStatusCard(BuildContext context, PurchaseService service) {
-    final statusStyle = Theme.of(context).textTheme.headline6?.copyWith(color: Colors.white, fontWeight: FontWeight.bold);
+    final statusStyle = Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold);
     String statusText;
     String detailText;
 
@@ -93,15 +93,15 @@ class PurchaseScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            Text(product.title, style: Theme.of(context).textTheme.headline5?.copyWith(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+            Text(product.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
             const SizedBox(height: 12),
             Text(product.description, textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
             const SizedBox(height: 20),
-            Text(product.price, style: Theme.of(context).textTheme.headline4?.copyWith(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+            Text(product.price, style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
             const SizedBox(height: 24),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                primary: Colors.deepPurple,
+                backgroundColor: Colors.deepPurple,
                 padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               ),
