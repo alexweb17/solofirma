@@ -23,9 +23,7 @@ jobs:
         with:
           channel: 'stable'
 
-      # 3. NUEVO PASO: Aceptar la licencia de Xcode antes de compilar
-      - name: Aceptar licencia de Xcode
-        run: sudo xcodebuild -license accept
+      
 
       # 4. Compila el App Bundle (.aab) usando el comando de Flutter
       - name: Compilar App Bundle con Flutter
