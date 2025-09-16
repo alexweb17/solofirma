@@ -9,6 +9,7 @@ plugins {
 android {
     namespace = "com.example.solofirma"
     compileSdk = 35
+    ndkVersion = "25.1.8937393"
 
     // Configuración de compatibilidad Java
     compileOptions {
