@@ -1,0 +1,41 @@
+# Nombre del workflow
+name: Subir App a Google Play (Flutter)
+
+# ¿Cuándo se debe ejecutar este workflow?
+on:
+  # Se activa cuando se crea una nueva "release" en GitHub
+  release:
+    types: [created]
+
+jobs:
+  build-and-upload:
+    # El tipo de máquina virtual donde se ejecutará
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Clona tu repositorio para tener acceso a tu código
+      - name: Clonar repositorio
+        uses: actions/checkout@v3
+
+      # 2. Configura el entorno de Flutter
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      # 3. NUEVO PASO: Aceptar la licencia de Xcode antes de compilar
+      - name: Aceptar licencia de Xcode
+        run: sudo xcodebuild -license accept
+
+      # 4. Compila el App Bundle (.aab) usando el comando de Flutter
+      - name: Compilar App Bundle con Flutter
+        run: flutter build appbundle
+
+      # 5. Sube el .aab a Google Play
+      - name: Subir AAB a Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ secrets.PACKAGE_NAME }}
+          releaseFile: build/app/outputs/bundle/release/app-release.aab
+          track: internal
