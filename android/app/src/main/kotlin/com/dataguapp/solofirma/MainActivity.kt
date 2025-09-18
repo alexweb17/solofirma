@@ -1,4 +1,4 @@
-package com.example.solofirma
+package com.dataguapp.solofirma
 
 import io.flutter.embedding.android.FlutterActivity
 
