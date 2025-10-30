@@ -1,6 +1,3 @@
-import 'package:provider/provider.dart';
-import 'package:solofirma/screens/purchase_screen.dart';
-import 'package:solofirma/services/purchase_services.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -80,23 +77,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _selectAndPreviewPdf() async {
-    final purchaseService = Provider.of<PurchaseService>(context, listen: false);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
 
-    if (purchaseService.canUserSign()) {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
-
-      if (result != null && result.files.single.path != null) {
-        if (!mounted) return;
-        _navigateToPreview(result.files.single.path!);
-      }
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PurchaseScreen()),
-      );
+    if (result != null && result.files.single.path != null) {
+      if (!mounted) return;
+      _navigateToPreview(result.files.single.path!);
     }
   }
 

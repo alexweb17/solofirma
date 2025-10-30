@@ -1,19 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:solofirma/screens/home_screen.dart';
 import 'package:solofirma/screens/import_certificate_screen.dart';
 import 'package:solofirma/services/credential_services.dart';
-import 'package:solofirma/services/purchase_services.dart';
 
 void main() {
-  // Envolvemos la app con el Provider para el servicio de compras
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => PurchaseService(),
-      child: const MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {

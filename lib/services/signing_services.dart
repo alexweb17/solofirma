@@ -16,20 +16,6 @@ class _P12Data {
   _P12Data(this.bytes, this.password);
 }
 
-class _SignatureCoords {
-  final double pdfX;
-  final double pdfY;
-  _SignatureCoords(this.pdfX, this.pdfY);
-}
-
-class DebugInfo {
-  final String label;
-  final double x;
-  final double y;
-  final Color color;
-  DebugInfo(this.label, this.x, this.y, this.color);
-}
-
 // ===================== FUNCIÓN DE ISOLATE PARA LA FIRMA =====================
 Future<String?> _signPdfIsolate(Map<String, dynamic> params) async {
   final pdfBytes = params['pdfBytes'] as Uint8List;
@@ -46,32 +32,25 @@ Future<String?> _signPdfIsolate(Map<String, dynamic> params) async {
   try {
     // 2️⃣ Leer PDF
     document = PdfDocument(inputBytes: pdfBytes);
-    print('✅ PDF cargado para firma en isolate');
 
     // 3️⃣ Generar QR
     final qrImage = PdfBitmap(qrBytes);
-    print('✅ QR reconstruido en isolate');
 
     // 4️⃣ Obtener nombre del firmante
     final signerName = _extractSignerName(p12Bytes, password);
-    print('✅ Nombre firmante en isolate: $signerName');
 
     // 5️⃣ Dibujar QR y nombre
     final page = document.pages[pageIndex];
     _drawQrAndName(page, qrImage, signerName, pdfOffsetX, pdfOffsetY);
-    print('✅ QR y nombre dibujados en isolate');
 
     // 6️⃣ Aplicar firma digital
     _applyDigitalSignature(document, p12Bytes, password, pageIndex, pdfOffsetX, pdfOffsetY);
-    print('✅ Firma digital aplicada en isolate');
 
     // 7️⃣ Guardar PDF firmado
     final signedFile = await _saveSignedPdf(originalPath, document);
-    print('✅ PDF firmado guardado en isolate');
 
     return signedFile.path;
   } catch (e) {
-    print('❌ Error al firmar el documento en isolate: $e');
     document?.dispose();
     return null;
   }
@@ -80,26 +59,6 @@ Future<String?> _signPdfIsolate(Map<String, dynamic> params) async {
 class SigningService {
   final _credentialService = CredentialService();
 
-  // ===================== CONSTANTES =====================
-  static const Size _qrSize = Size(60, 60);
-  static const double _textSpacing = 5.0;
-  static const double _fontSize = 8.0;
-  static const String _defaultSignerName = 'Firmante no identificado';
-  
-  // 🐛 MODO DEBUG - Activar para ver marcadores visuales
-  static const bool _debugMode = true;
-  
-  // Mapa de OIDs comunes a nombres legibles
-  static const Map<String, String> _oidToName = {
-    '2.5.4.3': 'CN',
-    '2.5.4.6': 'C',
-    '2.5.4.7': 'L',
-    '2.5.4.8': 'ST',
-    '2.5.4.10': 'O',
-    '2.5.4.11': 'OU',
-    '1.2.840.113549.1.9.1': 'emailAddress',
-  };
-
   // ===================== MÉTODO PRINCIPAL CON DEBUG =====================
   Future<File?> signPdf(
     File originalPdf,
@@ -107,21 +66,14 @@ class SigningService {
     int pageIndex,
   ) async {
     try {
-      print('🚀 === INICIANDO PROCESO DE FIRMA ===');
-      print('📂 Archivo: ${originalPdf.path}');
-      print('✍️ Posición PDF: ${pdfOffset.dx}, ${pdfOffset.dy}');
-      print('📄 Página: $pageIndex');
-      
       // 1️⃣ Cargar credenciales
       final p12Data = await _loadP12Credentials();
-      print('✅ Credenciales cargadas');
 
       // 2️⃣ Generar QR en el isolate principal
       final qrBytes = await _generateQrImage('Documento Firmado por SoloFirma');
       if (qrBytes == null) {
         throw Exception('No se pudo generar la imagen del QR.');
       }
-      print('✅ QR generado en main isolate');
 
       // 3️⃣ Ejecutar firma en un isolate separado
       final signedFilePath = await compute(_signPdfIsolate, {
@@ -136,13 +88,11 @@ class SigningService {
       });
 
       if (signedFilePath != null) {
-        print('✅ PDF firmado guardado en: $signedFilePath');
         return File(signedFilePath);
       } else {
         return null;
       }
     } catch (e) {
-      print('❌ Error al firmar el documento: $e');
       return null;
     }
   }
@@ -189,60 +139,46 @@ Future<Uint8List?> _generateQrImage(String data) async {
 
 String _extractSignerName(Uint8List p12Bytes, String password) {
   try {
-    print('🔍 Iniciando extracción robusta de nombre del certificado...');
-    
     final certPemStrings = Pkcs12Utils.parsePkcs12(p12Bytes, password: password)
         .where((pem) => pem.contains('BEGIN CERTIFICATE'))
         .toList();
 
     if (certPemStrings.isEmpty) {
-      print('❌ No se encontraron certificados válidos.');
       return 'Firmante no identificado';
     }
-
-    print('📋 Certificados encontrados: ${certPemStrings.length}');
 
     final List<Map<String, dynamic>> certDetails = [];
     for (int i = 0; i < certPemStrings.length; i++) {
       final details = _parseCertificateDetails(certPemStrings[i]);
       if (details != null) {
         certDetails.add(details);
-        print('✅ Certificado $i parseado: CN="${details['cn']}", Subject="${details['subjectDN']}"');
       } else {
-        print('❌ No se pudo parsear el certificado $i');
       }
     }
 
     if (certDetails.isEmpty) {
-      print('❌ No se pudo parsear ningún certificado');
       return 'Firmante no identificado';
     }
 
     final issuers = certDetails.map((details) => details['issuerDN']).toSet();
-    print('🏢 Emisores encontrados: ${issuers.length}');
 
     Map<String, dynamic>? endEntityCert;
     for (final details in certDetails) {
       if (!issuers.contains(details['subjectDN'])) {
         endEntityCert = details;
-        print('🎯 Certificado final identificado: "${details['cn']}"');
         break;
       }
     }
 
     if (endEntityCert != null) {
       final signerName = endEntityCert['cn'] ?? 'Firmante no identificado';
-      print('✅ Nombre del firmante final encontrado: "$signerName"');
       return signerName;
     }
     
-    print('⚠️ No se pudo identificar el certificado final. Usando el primero disponible.');
     final fallbackName = certDetails.first['cn'] ?? 'Firmante no identificado';
-    print('🔄 Nombre de fallback: "$fallbackName"');
     return fallbackName;
 
   } catch (e) {
-    print('💥 Error fatal durante la extracción del nombre: $e');
     return 'Firmante no identificado';
   }
 }
@@ -463,7 +399,6 @@ Future<File> _saveSignedPdf(String originalPath, PdfDocument document) async {
     final signedFile = File(signedPath);
     await signedFile.writeAsBytes(signedBytes);
 
-    print('✅ PDF firmado guardado en: $signedPath');
     return signedFile;
   } finally {
     document.dispose();
