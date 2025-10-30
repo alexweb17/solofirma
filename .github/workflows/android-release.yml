@@ -23,7 +23,12 @@ jobs:
         with:
           channel: 'stable'
 
-      
+      # 3. Configura Java (necesario para la compilación de Android)
+      - name: Configurar Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
       # 4. Compila el App Bundle (.aab) usando el comando de Flutter
       - name: Compilar App Bundle con Flutter
@@ -35,5 +40,5 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
           packageName: ${{ secrets.PACKAGE_NAME }}
-          releaseFile: build/app/outputs/bundle/release/app-release.aab
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: internal

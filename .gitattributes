@@ -1,0 +1,6 @@
+# Configura todos los archivos de texto para que Git maneje los finales de línea automáticamente
+* text=auto
+
+# Forza que los archivos YAML siempre usen LF, sin importar el sistema operativo
+*.yml text eol=lf
+*.yaml text eol=lf
