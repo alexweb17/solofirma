@@ -1,0 +1,73 @@
+﻿Running Gradle task 'assembleRelease'...                        
+flutter : lib/service
+s/signing_services.da
+rt:433:41: Error: 
+Too many positional 
+arguments: 0 
+allowed, but 1 found.
+At line:1 char:1
++ flutter build apk 
+> 
+build_error_v31.txt 
+2>&1
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (lib/ser   
+ vices/si...d, bu    
+t 1 found.:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+Try removing the 
+extra positional 
+arguments.
+        signature.cre
+ateLongTermValidity(c
+hain);
+                     
+                   ^
+Target kernel_snapsho
+t_program failed: 
+Exception
+
+
+FAILURE: Build 
+failed with an 
+exception.
+
+* What went wrong:
+Execution failed for 
+task ':app:compileFlu
+tterBuildRelease'.
+> Process 'command 'C
+:\src\flutter\bin\flu
+tter.bat'' finished 
+with non-zero exit 
+value 1
+
+* Try:
+> Run with 
+--stacktrace option 
+to get the stack 
+trace.
+> Run with --info or 
+--debug option to 
+get more log output.
+> Run with --scan to 
+get full insights.
+> Get more help at ht
+tps://help.gradle.org
+.
+
+BUILD FAILED in 30s
+Running Gradle task 'assembleRelease'...                           31.3s
+Gradle task 
+assembleRelease 
+failed with exit 
+code 1

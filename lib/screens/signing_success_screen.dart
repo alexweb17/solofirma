@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 class SigningSuccessScreen extends StatefulWidget {
@@ -12,6 +13,8 @@ class SigningSuccessScreen extends StatefulWidget {
 }
 
 class _SigningSuccessScreenState extends State<SigningSuccessScreen> {
+  static const platform = MethodChannel('com.dataguapp.solofirma/files');
+
   @override
   void initState() {
     super.initState();
@@ -56,9 +59,28 @@ class _SigningSuccessScreenState extends State<SigningSuccessScreen> {
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 48),
-              ElevatedButton(
+              ElevatedButton.icon(
+                onPressed: _shareFile,
+                icon: const Icon(Icons.share),
+                label: const Text('Compartir (Email, Drive, WhatsApp)'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(250, 45),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _saveLocally,
+                icon: const Icon(Icons.download),
+                label: const Text('Guardar en Dispositivo'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(250, 45),
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
                 onPressed: () {
-                  // Permite al usuario volver a la pantalla de inicio
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 child: const Text('Volver al Inicio'),
@@ -68,5 +90,41 @@ class _SigningSuccessScreenState extends State<SigningSuccessScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _saveLocally() async {
+    try {
+      // Obtener el nombre del archivo
+      final String fileName = widget.signedPdfFile.uri.pathSegments.last;
+      
+      // Llamar al método nativo que usa MediaStore para Android 10+
+      final String? savedPath = await platform.invokeMethod<String>(
+        'saveToDownloads',
+        {
+          'sourcePath': widget.signedPdfFile.path,
+          'fileName': fileName,
+        },
+      );
+
+      if (savedPath != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Guardado en: $savedPath'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 }

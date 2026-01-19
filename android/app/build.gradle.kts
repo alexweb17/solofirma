@@ -16,8 +16,8 @@ plugins {
 
 android {
     namespace = "com.dataguapp.solofirma"
-    compileSdk = 35
-    ndkVersion = "25.1.8937393"
+    compileSdk = 36
+    ndkVersion = "26.1.10909125"
     
     signingConfigs {
         create("release") {
@@ -40,7 +40,7 @@ android {
     defaultConfig {
         applicationId = "com.dataguapp.solofirma"
         minSdk = 21
-        targetSdk = 35
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -54,4 +54,12 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // iText 7 Community for PDF signing
+    implementation("com.itextpdf:itext7-core:7.2.5")
+    // BouncyCastle for cryptography (jdk15on to match iText's transitive dependency)
+    implementation("org.bouncycastle:bcprov-jdk15on:1.70")
+    implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:basic_utils/basic_utils.dart';
@@ -16,7 +17,7 @@ class _P12Data {
   _P12Data(this.bytes, this.password);
 }
 
-// ===================== FUNCIÓN DE ISOLATE PARA LA FIRMA =====================
+// ===================== FUNCIÓN DE ISOLATE PARA LA FIRMA (FALLBACK) =====================
 Future<String?> _signPdfIsolate(Map<String, dynamic> params) async {
   final pdfBytes = params['pdfBytes'] as Uint8List;
   final p12Bytes = params['p12Bytes'] as Uint8List;
@@ -30,27 +31,17 @@ Future<String?> _signPdfIsolate(Map<String, dynamic> params) async {
   PdfDocument? document;
 
   try {
-    // 2️⃣ Leer PDF
+    print('DEBUG: Starting _signPdfIsolate (Syncfusion fallback)...');
     document = PdfDocument(inputBytes: pdfBytes);
-
-    // 3️⃣ Generar QR
     final qrImage = PdfBitmap(qrBytes);
-
-    // 4️⃣ Obtener nombre del firmante
     final signerName = _extractSignerName(p12Bytes, password);
-
-    // 5️⃣ Dibujar QR y nombre
-    final page = document.pages[pageIndex];
-    _drawQrAndName(page, qrImage, signerName, pdfOffsetX, pdfOffsetY);
-
-    // 6️⃣ Aplicar firma digital
-    _applyDigitalSignature(document, p12Bytes, password, pageIndex, pdfOffsetX, pdfOffsetY);
-
-    // 7️⃣ Guardar PDF firmado
+    _applyDigitalSignature(document, p12Bytes, password, pageIndex, pdfOffsetX, pdfOffsetY, qrBytes, signerName);
     final signedFile = await _saveSignedPdf(originalPath, document);
-
+    print('DEBUG: PDF Signed and saved at: ${signedFile.path}');
     return signedFile.path;
-  } catch (e) {
+  } catch (e, stackTrace) {
+    print('ERROR IN ISOLATE: $e');
+    print(stackTrace);
     document?.dispose();
     return null;
   }
@@ -58,24 +49,69 @@ Future<String?> _signPdfIsolate(Map<String, dynamic> params) async {
 
 class SigningService {
   final _credentialService = CredentialService();
+  
+  // Native Android signing channel
+  static const _signingChannel = MethodChannel('com.dataguapp.solofirma/signing');
 
-  // ===================== MÉTODO PRINCIPAL CON DEBUG =====================
+  // ===================== MÉTODO PRINCIPAL - USA NATIVO PRIMERO =====================
   Future<File?> signPdf(
     File originalPdf,
     Offset pdfOffset,
     int pageIndex,
   ) async {
     try {
-      // 1️⃣ Cargar credenciales
+      print('DEBUG: Starting signPdf...');
       final p12Data = await _loadP12Credentials();
-
-      // 2️⃣ Generar QR en el isolate principal
+      
+      // Extraer nombre del firmante
+      String signerName = 'Firmado Digitalmente';
+      try {
+        signerName = _extractSignerName(p12Data.bytes, p12Data.password);
+      } catch (e) {
+        print('WARN: Could not extract signer name: $e');
+      }
+      
+      // Intentar firma nativa primero (Android)
+      if (Platform.isAndroid) {
+        try {
+          final outputPath = originalPdf.path.replaceAll('.pdf', '-firmado.pdf');
+          
+          final result = await _signingChannel.invokeMethod<String>('signPdfWithLtv', {
+            'pdfPath': originalPdf.path,
+            'p12Bytes': p12Data.bytes,
+            'password': p12Data.password,
+            'outputPath': outputPath,
+            'signerName': signerName,
+            'reason': 'Documento firmado con SoloFirma',
+            'location': 'Ecuador',
+            'pageNumber': pageIndex + 1, // iText uses 1-based page numbers
+            'x': pdfOffset.dx,
+            'y': pdfOffset.dy,
+            'width': 200.0,
+            'height': 50.0,
+          });
+          
+          if (result != null) {
+            print('DEBUG: Native signing successful: $result');
+            return File(result);
+          }
+        } catch (e) {
+          print('DEBUG: Native signing failed: $e');
+          // CRITICAL: Rethrow so UI shows the error from Kotlin (e.g. LTV failure)
+          // Do NOT fallback to Syncfusion as it produces freezing PDFs.
+          rethrow;
+        }
+      } else {
+        // Non-Android platforms: continue to Syncfusion fallback below
+      }
+      
+      // Fallback: usar Syncfusion (sin LTV)
+      print('DEBUG: Using Syncfusion fallback...');
       final qrBytes = await _generateQrImage('Documento Firmado por SoloFirma');
       if (qrBytes == null) {
         throw Exception('No se pudo generar la imagen del QR.');
       }
 
-      // 3️⃣ Ejecutar firma en un isolate separado
       final signedFilePath = await compute(_signPdfIsolate, {
         'pdfBytes': await originalPdf.readAsBytes(),
         'p12Bytes': p12Data.bytes,
@@ -92,8 +128,12 @@ class SigningService {
       } else {
         return null;
       }
-    } catch (e) {
-      return null;
+    } catch (e, stackTrace) {
+      print('ERROR IN SIGNPDF: $e');
+      print(stackTrace);
+      // CRITICAL: Rethrow to show the specific error in the UI (e.g. PlatformException)
+      // instead of the generic "No se pudo firmar" message.
+      rethrow;
     }
   }
 
@@ -344,22 +384,37 @@ String _cleanSignerName(String name) {
       .trim();
 }
 
-void _drawQrAndName(PdfPage page, PdfBitmap qrImage, String signerName, double pdfX, double pdfY) {
+void _drawSignatureAppearance(PdfGraphics graphics, Uint8List qrBytes, String signerName, Size size) {
+  final qrImage = PdfBitmap(qrBytes);
+  
+  // Tamaño del QR
   const qrSize = Size(60, 60);
-  const textSpacing = 5.0;
-  const fontSize = 8.0;
+  const textSpacing = 10.0;
+  
+  // 1. Dibujar QR a la izquierda (Coordenadas relativas al campo de firma)
+  graphics.drawImage(qrImage, Rect.fromLTWH(0, 0, qrSize.width, qrSize.height));
 
-  // Dibujar QR
-  page.graphics.drawImage(qrImage, Rect.fromLTWH(pdfX, pdfY, qrSize.width, qrSize.height));
-
-  // Dibujar nombre simplificado
-  final font = PdfStandardFont(PdfFontFamily.helvetica, fontSize);
-  page.graphics.drawString(
-    signerName,
-    font,
+  // 2. Dibujar texto a la derecha
+  final labelFont = PdfStandardFont(PdfFontFamily.helvetica, 6);
+  final nameFont = PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold);
+  
+  final textStartX = qrSize.width + textSpacing;
+  
+  // Etiqueta superior
+  graphics.drawString(
+    'Firmado electrónicamente por:',
+    labelFont,
+    bounds: Rect.fromLTWH(textStartX, 8, 200, 10),
     brush: PdfBrushes.black,
-    bounds: Rect.fromLTWH(pdfX, pdfY + qrSize.height + textSpacing, qrSize.width + 40, 20),
-    format: PdfStringFormat(alignment: PdfTextAlignment.center),
+  );
+  
+  // Nombre del firmante (en negrita)
+  graphics.drawString(
+    signerName,
+    nameFont,
+    bounds: Rect.fromLTWH(textStartX, 18, 220, 40), 
+    brush: PdfBrushes.black,
+    format: PdfStringFormat(lineAlignment: PdfVerticalAlignment.top, wordWrap: PdfWordWrapType.word),
   );
 }
 
@@ -370,23 +425,75 @@ void _applyDigitalSignature(
   int pageIndex,
   double pdfX,
   double pdfY,
+  Uint8List qrBytes,
+  String signerName,
 ) {
   const qrSize = Size(60, 60);
+  // Ancho total estimado: QR (60) + Espacio (10) + Texto (~200) = ~270
+  // Alto: ~60
+  const signatureSize = Size(270, 60);
+  
   final certificate = PdfCertificate(p12Bytes, password);
+
+  final signature = PdfSignature(
+    certificate: certificate,
+    digestAlgorithm: DigestAlgorithm.sha256,
+    cryptographicStandard: CryptographicStandard.cades,
+  );
+  
+  // Habilitar LTV (Long Term Validation)
+  try {
+    // Extraer la cadena de certificados del P12
+    final certPemStrings = Pkcs12Utils.parsePkcs12(p12Bytes, password: password);
+    final List<PdfCertificate> chain = [];
+    
+    for (final pem in certPemStrings) {
+        if (pem.contains('BEGIN CERTIFICATE')) {
+            try {
+                final cleanPem = pem
+                    .replaceAll('-----BEGIN CERTIFICATE-----', '')
+                    .replaceAll('-----END CERTIFICATE-----', '')
+                    .replaceAll(RegExp(r'\s'), '');
+                final certBytes = base64.decode(cleanPem);
+                // Asumimos que PdfCertificate puede tomar bytes X.509 crudos
+                // Si la librería requiere contraseña para todo, esto fallará, 
+                // pero típicamente acepta bytes DER para certificados públicos.
+                chain.add(PdfCertificate(certBytes, '')); 
+            } catch (e) {
+                print('WARN: Error procesando certificado para cadena: $e');
+            }
+        }
+    }
+    
+    // LTV (Long Term Validation) y Timestamp DESACTIVADOS
+    // La versión de Syncfusion (incluso v31) tiene problemas con el manejo de espacio de firma
+    // cuando se usa LTV con ciertos certificados. Esto causa un RangeError negativo.
+    // La firma funcionará sin LTV, pero Adobe Reader no podrá verificar revocación automáticamente.
+    // TODO: Investigar alternativas (iText, PDFBox) para soporte LTV completo.
+    /*
+    if (chain.isNotEmpty) {
+        print('INFO: Habilitando LTV con cadena de ${chain.length} certificados');
+        signature.createLongTermValidity();
+    } else {
+        print('WARN: No se encontraron certificados extra para la cadena LTV');
+        signature.createLongTermValidity();
+    }
+    signature.timestampServer = TimestampServer(Uri.parse('http://timestamp.digicert.com'));
+    */
+    
+  } catch (e) {
+    print('ERROR: Fallo al configurar LTV: $e');
+  }
 
   final field = PdfSignatureField(
     document.pages[pageIndex],
     'SoloFirmaSignature_${DateTime.now().millisecondsSinceEpoch}',
-    bounds: Rect.fromLTWH(pdfX, pdfY, qrSize.width, qrSize.height + 35),
-    signature: PdfSignature(
-      certificate: certificate,
-      contactInfo: 'firmado@solofirma.app',
-      reason: 'Firmado digitalmente con SoloFirma',
-      locationInfo: 'Ecuador',
-      digestAlgorithm: DigestAlgorithm.sha256,
-      cryptographicStandard: CryptographicStandard.cms,
-    ),
+    bounds: Rect.fromLTWH(pdfX, pdfY, signatureSize.width, signatureSize.height),
+    signature: signature,
   );
+
+  // DIBUJAR APARIENCIA DENTRO DEL CAMPO
+  _drawSignatureAppearance(field.appearance.normal.graphics!, qrBytes, signerName, signatureSize);
 
   document.form.fields.add(field);
 }

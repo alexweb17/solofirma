@@ -1,0 +1,98 @@
+
+============================================================
+Analizando: No Abre - firmado con solofirma.pdf
+============================================================
+Tamano: 130,525 bytes (127.47 KB)
+Paginas: 1
+
+Metadata:
+  /Author: Mariela Garcia
+  /Creator: Microsoft® Word para Microsoft 365
+  /CreationDate: D:20251230193903-05'00'
+  /ModDate: D:20260105232253+-5'-27'
+  /Producer: Microsoft® Word para Microsoft 365
+
+Numero de objetos: 44
+
+[OK] Contiene AcroForm (formularios/firmas)
+  Numero de campos: 1
+  Campo 1: SoloFirmaSignature_1767673373489 (Tipo: /Sig)
+    -> FIRMA DIGITAL DETECTADA
+    SubFilter: /ETSI.CAdES.detached
+    Filter: /Adobe.PPKLite
+    Tamano firma: 8192 bytes
+    ByteRange: [0, 109635, 126021, 4504]
+
+Streams comprimidos: 4
+
+[OK] Analisis completado sin errores criticos
+
+============================================================
+Analizando: Si abre - firmado con firmaec.pdf
+============================================================
+Tamano: 148,234 bytes (144.76 KB)
+Paginas: 1
+
+Metadata:
+  /Author: Mariela Garcia
+  /CreationDate: D:20251230193903-05'00'
+  /Creator: Microsoft® Word para Microsoft 365
+  /ModDate: D:20251231131304-05'00'
+  /Producer: Microsoft® Word para Microsoft 365; modified using iText® 7.1.18 ©2000-2022 iText Group NV (AGPL-version)
+
+Numero de objetos: 46
+
+[OK] Contiene AcroForm (formularios/firmas)
+  Numero de campos: 1
+  Campo 1: Signature1 (Tipo: /Sig)
+    -> FIRMA DIGITAL DETECTADA
+    SubFilter: /adbe.pkcs7.detached
+    Filter: /Adobe.PPKLite
+    Tamano firma: 16384 bytes
+    ByteRange: [0, 109085, 141855, 6379]
+
+Streams comprimidos: 1
+
+[OK] Analisis completado sin errores criticos
+
+============================================================
+COMPARACION
+============================================================
+
+1. TAMANO:
+  No Abre - firmado con solofirma.pdf: 130,525 bytes
+  Si abre - firmado con firmaec.pdf: 148,234 bytes
+  Diferencia: 17,709 bytes (mas pequeno)
+
+2. OBJETOS:
+  No Abre - firmado con solofirma.pdf: 44 objetos
+  Si abre - firmado con firmaec.pdf: 46 objetos
+  [!] DIFERENCIA: 2 objetos de diferencia
+
+3. FIRMAS:
+  No Abre - firmado con solofirma.pdf: 1 campos
+  Si abre - firmado con firmaec.pdf: 1 campos
+
+4. COMPRESION:
+  No Abre - firmado con solofirma.pdf: 4 streams comprimidos
+  Si abre - firmado con firmaec.pdf: 1 streams comprimidos
+
+5. ERRORES:
+  No Abre - firmado con solofirma.pdf: 0 errores
+  Si abre - firmado con firmaec.pdf: 0 errores
+
+============================================================
+CONCLUSIONES:
+============================================================
+
+[!] Diferencia en numero de objetos puede indicar:
+  - Diferentes metodos de firma
+  - Informacion adicional embebida
+  - Posible corrupcion
+
+[!] No Abre - firmado con solofirma.pdf usa mas compresion.
+  Adobe Reader podria tener problemas con algoritmos de compresion agresivos.
+
+============================================================
+Analisis completado
+============================================================

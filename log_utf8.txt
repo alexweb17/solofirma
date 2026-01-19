@@ -1,0 +1,119 @@
+﻿Launching lib\main.dart on sdk gphone64 x86 64 in debug mode...
+Running Gradle task 'assembleDebug'...                             18.2s
+ΓêÜ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...        1,934ms
+I/flutter (15364): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(94)] Using the Impeller rendering backend (OpenGLES).
+Syncing files to device sdk gphone64 x86 64...                     150ms
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on sdk gphone64 x86 64 is available at: http://127.0.0.1:49696/RoctL9TZRy0=/
+The Flutter DevTools debugger and profiler on sdk gphone64 x86 64 is available at: http://127.0.0.1:9100?uri=http://127.0.0.1:49696/RoctL9TZRy0=/
+I/Choreographer(15364): Skipped 333 frames!  The application may be doing too much work on its main thread.
+D/HostConnection(15364): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_native_sync_v3 ANDROID_EMU_native_sync_v4 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_vulkan_queue_submit_with_commands ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_1 
+W/OpenGLRenderer(15364): Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+W/OpenGLRenderer(15364): Failed to initialize 101010-2 format, error = EGL_SUCCESS
+D/EGL_emulation(15364): eglCreateContext: 0x7e97d645d390: maj 3 min 1 rcv 4
+D/EGL_emulation(15364): eglMakeCurrent: 0x7e97d645d390: ver 3 1 (tinfo 0x7e99efb88180) (first time)
+I/Gralloc4(15364): mapper 4.x is not supported
+W/Gralloc4(15364): allocator 4.x is not supported
+D/HostConnection(15364): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_native_sync_v3 ANDROID_EMU_native_sync_v4 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_vulkan_queue_submit_with_commands ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_1 
+D/HostConnection(15364): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_native_sync_v3 ANDROID_EMU_native_sync_v4 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_vulkan ANDROID_EMU_deferred_vulkan_commands ANDROID_EMU_vulkan_null_optional_strings ANDROID_EMU_vulkan_create_resources_with_requirements ANDROID_EMU_YUV_Cache ANDROID_EMU_vulkan_ignored_handles ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_vulkan_free_memory_sync ANDROID_EMU_vulkan_shader_float16_int8 ANDROID_EMU_vulkan_async_queue_submit ANDROID_EMU_vulkan_queue_submit_with_commands ANDROID_EMU_sync_buffer_data ANDROID_EMU_vulkan_async_qsri ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_1 
+D/EGL_emulation(15364): eglMakeCurrent: 0x7e97d645fa90: ver 3 1 (tinfo 0x7e99efb88200) (first time)
+E/OpenGLRenderer(15364): Unable to match the desired swap behavior.
+I/Choreographer(15364): Skipped 58 frames!  The application may be doing too much work on its main thread.
+D/EGL_emulation(15364): app_time_stats: avg=198.87ms min=17.55ms max=751.91ms count=6
+D/ProfileInstaller(15364): Installing profile for com.dataguapp.solofirma
+D/EGL_emulation(15364): app_time_stats: avg=2929284.50ms min=29.57ms max=5858539.50ms count=2
+D/FilePickerUtils(15364): Allowed file extensions mimes: [application/pdf]
+D/FilePickerDelegate(15364): Selected type */*
+D/CompatibilityChangeReporter(15364): Compat change id reported: 78294732; UID 10174; state: ENABLED
+I/FilePickerUtils(15364): Caching from URI: content://com.android.providers.downloads.documents/document/msf%3A1000000034
+E/OpenGLRenderer(15364): Unable to match the desired swap behavior.
+D/FilePickerUtils(15364): File loaded and cached at:/data/user/0/com.dataguapp.solofirma/cache/file_picker/1767992026267/NombramientoDORALDEVILLACLUB.pdf
+D/FilePickerDelegate(15364): File path:[com.mr.flutter.plugin.filepicker.FileInfo@42170cd]
+W/OnBackInvokedCallback(15364): OnBackInvokedCallback is not enabled for the application.
+W/OnBackInvokedCallback(15364): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+D/EGL_emulation(15364): app_time_stats: avg=266.82ms min=51.76ms max=661.08ms count=5
+W/guapp.solofirma(15364): Reducing the number of considered missed Gc histogram windows from 605 to 100
+W/System  (15364): A resource failed to call close. 
+D/EGL_emulation(15364): app_time_stats: avg=249.11ms min=22.59ms max=593.94ms count=5
+D/EGL_emulation(15364): app_time_stats: avg=525.22ms min=173.38ms max=877.06ms count=2
+D/EGL_emulation(15364): app_time_stats: avg=469.85ms min=26.72ms max=1398.90ms count=4
+D/EGL_emulation(15364): app_time_stats: avg=254.60ms min=18.03ms max=624.44ms count=4
+D/EGL_emulation(15364): app_time_stats: avg=1028.38ms min=1028.38ms max=1028.38ms count=1
+I/flutter (15364): DEBUG: Starting signPdf...
+I/flutter (15364): DEBUG: Starting _signPdfIsolate...
+D/EGL_emulation(15364): app_time_stats: avg=36.39ms min=13.38ms max=152.12ms count=28
+D/EGL_emulation(15364): app_time_stats: avg=13.30ms min=4.49ms max=51.27ms count=55
+D/EGL_emulation(15364): app_time_stats: avg=14.68ms min=4.23ms max=36.61ms count=55
+D/EGL_emulation(15364): app_time_stats: avg=12.36ms min=4.89ms max=37.14ms count=57
+D/EGL_emulation(15364): app_time_stats: avg=11.50ms min=4.33ms max=22.50ms count=60
+D/EGL_emulation(15364): app_time_stats: avg=14.03ms min=2.28ms max=39.01ms count=56
+I/flutter (15364): 
+D/EGL_emulation(15364): app_time_stats: avg=37.00ms min=15.50ms max=99.67ms count=27
+D/EGL_emulation(15364): app_time_stats: avg=19.66ms min=9.51ms max=42.91ms count=51
+D/EGL_emulation(15364): app_time_stats: avg=16.04ms min=3.71ms max=54.17ms count=57
+D/EGL_emulation(15364): app_time_stats: avg=15.16ms min=2.49ms max=31.65ms count=57
+D/EGL_emulation(15364): app_time_stats: avg=14.40ms min=4.68ms max=29.52ms count=54
+D/EGL_emulation(15364): app_time_stats: avg=12.48ms min=2.96ms max=23.36ms count=59
+D/EGL_emulation(15364): app_time_stats: avg=7.33ms min=2.94ms max=26.83ms count=59
+I/flutter (15364): 
+I/flutter (15364): WARN: Error procesando certificado para cadena: type 'DerNull' is not a subtype of type 'Asn1Tag' in type cast
+I/flutter (15364): WARN: Error procesando certificado para cadena: type 'DerNull' is not a subtype of type 'Asn1Tag' in type cast
+I/flutter (15364): WARN: Error procesando certificado para cadena: type 'DerNull' is not a subtype of type 'Asn1Tag' in type cast
+I/flutter (15364): WARN: No se encontraron certificados extra para la cadena LTV
+D/EGL_emulation(15364): app_time_stats: avg=21.18ms min=3.67ms max=87.78ms count=38
+D/EGL_emulation(15364): app_time_stats: avg=23.87ms min=3.70ms max=47.36ms count=40
+I/flutter (15364): ERROR IN ISOLATE: RangeError (length): Invalid value: Not in inclusive range 0..268435455: -691
+I/flutter (15364): #0      new _GrowableList (dart:core-patch/growable_array.dart)
+I/flutter (15364): #1      new _GrowableList.generate (dart:core-patch/growable_array.dart:138:20)
+I/flutter (15364): #2      PdfSignatureDictionary._documentSavedAsync.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure> (package:syncfusion_flutter_pdf/src/pdf/implementation/security/digital_signature/pdf_signature_dictionary.dart:396:27)
+I/flutter (15364): <asynchronous suspension>
+I/flutter (15364): #3      PdfSignatureDictionary._documentSavedAsync.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure> (package:syncfusion_flutter_pdf/src/pdf/implementation/security/digital_signature/pdf_signature_dictionary.dart:387:17)
+I/flutter (15364): <asynchronous suspension>
+I/flutter (15364): #4      PdfSignatureDictionary._documentSavedAsync.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure> (package:syncfusion_flutter_pdf/src/pdf/implementation/security/digital_signature/pdf_signature_dictionary.dart:386:15)
+I/flutter (15364): <asynchronous 
+D/EGL_emulation(15364): app_time_stats: avg=244.44ms min=5.07ms max=3581.01ms count=18
+D/EGL_emulation(15364): app_time_stats: avg=608.70ms min=3.35ms max=10247.23ms count=17
+I/flutter (15364): DEBUG: Starting signPdf...
+I/flutter (15364): DEBUG: Starting _signPdfIsolate...
+D/EGL_emulation(15364): app_time_stats: avg=19.75ms min=3.80ms max=106.11ms count=43
+D/EGL_emulation(15364): app_time_stats: avg=10.78ms min=3.39ms max=31.12ms count=56
+D/EGL_emulation(15364): app_time_stats: avg=10.62ms min=3.15ms max=24.76ms count=59
+D/EGL_emulation(15364): app_time_stats: avg=12.65ms min=3.48ms max=25.71ms count=56
+D/EGL_emulation(15364): app_time_stats: avg=5.77ms min=2.45ms max=14.45ms count=61
+D/EGL_emulation(15364): app_time_stats: avg=6.82ms min=3.24ms max=25.12ms count=60
+I/flutter (15364): 
+D/EGL_emulation(15364): app_time_stats: avg=13.25ms min=3.44ms max=37.81ms count=54
+D/EGL_emulation(15364): app_time_stats: avg=11.20ms min=2.53ms max=29.89ms count=58
+D/EGL_emulation(15364): app_time_stats: avg=14.55ms min=3.50ms max=31.83ms count=60
+D/EGL_emulation(15364): app_time_stats: avg=9.33ms min=3.10ms max=23.51ms count=60
+D/EGL_emulation(15364): app_time_stats: avg=16.57ms min=9.61ms max=23.03ms count=61
+D/EGL_emulation(15364): app_time_stats: avg=12.15ms min=3.47ms max=27.30ms count=59
+I/flutter (15364): 
+I/flutter (15364): WARN: Error procesando certificado para cadena: type 'DerNull' is not a subtype of type 'Asn1Tag' in type cast
+I/flutter (15364): WARN: Error procesando certificado para cadena: type 'DerNull' is not a subtype of type 'Asn1Tag' in type cast
+I/flutter (15364): WARN: Error procesando certificado para cadena: type 'DerNull' is not a subtype of type 'Asn1Tag' in type cast
+I/flutter (15364): WARN: No se encontraron certificados extra para la cadena LTV
+D/EGL_emulation(15364): app_time_stats: avg=11.45ms min=3.51ms max=51.83ms count=52
+I/flutter (15364): ERROR IN ISOLATE: RangeError (length): Invalid value: Not in inclusive range 0..268435455: -693
+I/flutter (15364): #0      new _GrowableList (dart:core-patch/growable_array.dart)
+I/flutter (15364): #1      new _GrowableList.generate (dart:core-patch/growable_array.dart:138:20)
+I/flutter (15364): #2      PdfSignatureDictionary._documentSavedAsync.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure> (package:syncfusion_flutter_pdf/src/pdf/implementation/security/digital_signature/pdf_signature_dictionary.dart:396:27)
+I/flutter (15364): <asynchronous suspension>
+I/flutter (15364): #3      PdfSignatureDictionary._documentSavedAsync.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure> (package:syncfusion_flutter_pdf/src/pdf/implementation/security/digital_signature/pdf_signature_dictionary.dart:387:17)
+I/flutter (15364): <asynchronous suspension>
+I/flutter (15364): #4      PdfSignatureDictionary._documentSavedAsync.<anonymous closure>.<anonymous closure>.<anonymous closure>.<anonymous closure> (package:syncfusion_flutter_pdf/src/pdf/implementation/security/digital_signature/pdf_signature_dictionary.dart:386:15)
+I/flutter (15364): <asynchronous 
+I/guapp.solofirma(15364): Background young concurrent copying GC freed 959(85KB) AllocSpace objects, 2(16MB) LOS objects, 6% free, 36MB/39MB, paused 6.432ms,61us total 18.767ms
+D/EGL_emulation(15364): app_time_stats: avg=29.50ms min=8.72ms max=417.99ms count=35
+D/EGL_emulation(15364): app_time_stats: avg=1799.29ms min=18.51ms max=3580.07ms count=2
+D/EGL_emulation(15364): app_time_stats: avg=1028.69ms min=14.12ms max=17218.54ms count=17
+Lost connection to device.
