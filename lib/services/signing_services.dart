@@ -124,6 +124,16 @@ class SigningService {
       });
 
       if (signedFilePath != null) {
+        // Habilitar LTV via canal nativo (iText)
+        try {
+          print('DEBUG: Requesting Native LTV enablement for: $signedFilePath');
+          await enableLtv(signedFilePath);
+          print('DEBUG: Native LTV enabled successfully.');
+        } catch (e) {
+          print('WARN: Failed to enable LTV via native channel: $e');
+          // No lanzamos excepción aquí para no bloquear el flujo si LTV falla,
+          // aunque el PDF podría no ser validable a largo plazo.
+        }
         return File(signedFilePath);
       } else {
         return null;
@@ -133,6 +143,17 @@ class SigningService {
       print(stackTrace);
       // CRITICAL: Rethrow to show the specific error in the UI (e.g. PlatformException)
       // instead of the generic "No se pudo firmar" message.
+      rethrow;
+    }
+  }
+
+
+  // ===================== MÉTODO LTV NATIVO =====================
+  Future<void> enableLtv(String filePath) async {
+    try {
+      await _signingChannel.invokeMethod('enableLtv', {'path': filePath});
+    } on PlatformException catch (e) {
+      print("Failed to enable LTV: '${e.message}'.");
       rethrow;
     }
   }
@@ -441,49 +462,14 @@ void _applyDigitalSignature(
     cryptographicStandard: CryptographicStandard.cades,
   );
   
-  // Habilitar LTV (Long Term Validation)
-  try {
-    // Extraer la cadena de certificados del P12
-    final certPemStrings = Pkcs12Utils.parsePkcs12(p12Bytes, password: password);
-    final List<PdfCertificate> chain = [];
-    
-    for (final pem in certPemStrings) {
-        if (pem.contains('BEGIN CERTIFICATE')) {
-            try {
-                final cleanPem = pem
-                    .replaceAll('-----BEGIN CERTIFICATE-----', '')
-                    .replaceAll('-----END CERTIFICATE-----', '')
-                    .replaceAll(RegExp(r'\s'), '');
-                final certBytes = base64.decode(cleanPem);
-                // Asumimos que PdfCertificate puede tomar bytes X.509 crudos
-                // Si la librería requiere contraseña para todo, esto fallará, 
-                // pero típicamente acepta bytes DER para certificados públicos.
-                chain.add(PdfCertificate(certBytes, '')); 
-            } catch (e) {
-                print('WARN: Error procesando certificado para cadena: $e');
-            }
-        }
-    }
-    
-    // LTV (Long Term Validation) y Timestamp DESACTIVADOS
-    // La versión de Syncfusion (incluso v31) tiene problemas con el manejo de espacio de firma
-    // cuando se usa LTV con ciertos certificados. Esto causa un RangeError negativo.
-    // La firma funcionará sin LTV, pero Adobe Reader no podrá verificar revocación automáticamente.
-    // TODO: Investigar alternativas (iText, PDFBox) para soporte LTV completo.
-    /*
-    if (chain.isNotEmpty) {
-        print('INFO: Habilitando LTV con cadena de ${chain.length} certificados');
-        signature.createLongTermValidity();
-    } else {
-        print('WARN: No se encontraron certificados extra para la cadena LTV');
-        signature.createLongTermValidity();
-    }
-    signature.timestampServer = TimestampServer(Uri.parse('http://timestamp.digicert.com'));
-    */
-    
-  } catch (e) {
-    print('ERROR: Fallo al configurar LTV: $e');
-  }
+  // LTV (Long Term Validation) y Timestamp
+  // La implementación de Syncfusion tiene limitaciones con LTV.
+  // Se ha movido la lógica LTV al lado nativo (Android/Kotlin con iText).
+  // Por lo tanto, no intentamos habilitar LTV aquí para evitar errores.
+  
+  // NOTE: Previamente aquí se intentaba signature.createLongTermValidity(chain);
+  // lo cual causaba errores "Too many positional arguments" o fallos en runtime.
+  
 
   final field = PdfSignatureField(
     document.pages[pageIndex],

@@ -1,0 +1,28 @@
+
+======================================================================
+ANALISIS: No Abre - firmado con solofirma.pdf
+======================================================================
+DSS: NO ENCONTRADO
+AcroForm: ENCONTRADO
+  Claves: ['/NeedAppearances', '/Fields', '/SigFlags']
+  Fields: 1
+    Field 0: FT=/Sig, T=SoloFirmaSignature_1767673373489
+      SubFilter: /ETSI.CAdES.detached
+      Filter: /Adobe.PPKLite
+      Contents size: 8192 bytes
+      Sig dict keys: ['/Contents', '/ByteRange', '/Type', '/M', '/Filter', '/SubFilter', '/Reason', '/Location', '/ContactInfo']
+Claves raiz del catalogo: ['/Type', '/Pages', '/Lang', '/Metadata', '/ViewerPreferences', '/AcroForm']
+
+======================================================================
+ANALISIS: Si abre - firmado con firmaec.pdf
+======================================================================
+DSS: NO ENCONTRADO
+AcroForm: ENCONTRADO
+  Claves: ['/Fields', '/SigFlags']
+  Fields: 1
+    Field 0: FT=/Sig, T=Signature1
+      SubFilter: /adbe.pkcs7.detached
+      Filter: /Adobe.PPKLite
+      Contents size: 16384 bytes
+      Sig dict keys: ['/ByteRange', '/ContactInfo', '/Contents', '/Filter', '/Location', '/M', '/Prop_Build', '/Reason', '/SubFilter', '/Type']
+Claves raiz del catalogo: ['/AcroForm', '/Lang', '/Metadata', '/Pages', '/Type', '/ViewerPreferences']

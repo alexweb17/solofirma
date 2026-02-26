@@ -132,6 +132,49 @@ class MainActivity: FlutterActivity() {
                         }
                     }.start()
                 }
+                "enableLtv" -> {
+                    val path = call.argument<String>("path")
+                    if (path != null) {
+                        Thread {
+                            try {
+                                val reader = PdfReader(path)
+                                val writer = PdfWriter(path + ".ltv.tmp")
+                                val pdfDoc = com.itextpdf.kernel.pdf.PdfDocument(reader, writer, StampingProperties().useAppendMode())
+                                
+                                val adobeLtv = AdobeLtvEnabling(pdfDoc)
+                                adobeLtv.enable()
+                                
+                                pdfDoc.close()
+                                
+                                val originalFile = File(path)
+                                val tempFile = File(path + ".ltv.tmp")
+                                
+                                if (originalFile.delete()) {
+                                    if (tempFile.renameTo(originalFile)) {
+                                        runOnUiThread {
+                                            result.success(path)
+                                        }
+                                    } else {
+                                        runOnUiThread {
+                                            result.error("LTV_ERROR", "Could not rename temp file", null)
+                                        }
+                                    }
+                                } else {
+                                    runOnUiThread {
+                                        result.error("LTV_ERROR", "Could not delete original file", null)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                runOnUiThread {
+                                    result.error("LTV_ERROR", e.message, e.stackTraceToString())
+                                }
+                            }
+                        }.start()
+                    } else {
+                        result.error("INVALID_ARGS", "path is required", null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
