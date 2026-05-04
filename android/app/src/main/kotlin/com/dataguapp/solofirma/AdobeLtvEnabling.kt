@@ -1,16 +1,18 @@
 package com.dataguapp.solofirma
 
-import com.itextpdf.kernel.pdf.*
-import com.itextpdf.signatures.*
+import com.itextpdf.kernel.pdf.PdfDocument
+import com.itextpdf.signatures.CrlClientOnline
+import com.itextpdf.signatures.LtvVerification
+import com.itextpdf.signatures.OcspClientBouncyCastle
+import com.itextpdf.signatures.SignatureUtil
 import java.io.IOException
 import java.security.GeneralSecurityException
-import java.security.cert.X509Certificate
 
 /**
  * AdobeLtvEnabling - Adds LTV information to make PDFs "LTV enabled" as reported by Adobe Acrobat.
  * 
- * This is a simplified version that adds DSS with certificates, OCSP responses, and CRLs
- * fetched at signing time. The goal is to avoid Adobe Reader needing to fetch these online.
+ * Uses iText 7's built-in LtvVerification to construct the DSS and VRI dictionaries 
+ * natively according to Adobe specifications, avoiding Acrobat freezing issues.
  */
 class AdobeLtvEnabling(private val pdfDocument: PdfDocument) {
     
@@ -18,119 +20,47 @@ class AdobeLtvEnabling(private val pdfDocument: PdfDocument) {
     private val crlClient = CrlClientOnline()
     
     /**
-     * Enables LTV for all signatures in the document by adding DSS dictionary
+     * Enables LTV for all signatures in the document by using native LtvVerification
      */
     @Throws(IOException::class, GeneralSecurityException::class)
     fun enable() {
+        val ltvVerification = LtvVerification(pdfDocument)
         val signatureUtil = SignatureUtil(pdfDocument)
         val signatureNames = signatureUtil.signatureNames
         
-        val allCerts = mutableListOf<ByteArray>()
-        val allOcsps = mutableListOf<ByteArray>()
-        val allCrls = mutableListOf<ByteArray>()
-        
+        var hasRevocationData = false
+
         for (signatureName in signatureNames) {
-            println("INFO: Processing signature: $signatureName")
-            val pkcs7 = signatureUtil.readSignatureData(signatureName)
+            println("INFO: Processing signature for LTV Verification: $signatureName")
             
-            // Get certificates from signature
-            val certs = pkcs7.signCertificateChain
-            println("INFO: Found ${certs.size} certificates in chain")
-            
-            // For each certificate in chain, get OCSP/CRL
-            for (i in 0 until certs.size) {
-                val cert = certs[i] as? X509Certificate ?: continue
-                
-                // Add certificate
-                allCerts.add(cert.encoded)
-                
-                // Try to get issuer for OCSP/CRL
-                val issuer = if (i + 1 < certs.size) certs[i + 1] as? X509Certificate else null
-                
-                if (issuer != null) {
-                    // Get OCSP response
-                    println("INFO: Fetching OCSP for ${cert.subjectDN}")
-                    try {
-                        val ocspResp = ocspClient.getEncoded(cert, issuer, null)
-                        if (ocspResp != null) {
-                            allOcsps.add(ocspResp)
-                            println("INFO: Added OCSP for ${cert.subjectDN}")
-                        } else {
-                            println("WARNING: OCSP response was null for ${cert.subjectDN}")
-                        }
-                    } catch (e: Exception) {
-                        println("ERROR: OCSP fetch failed: ${e.message}")
-                        // Don't throw for individual OCSP failure, but track it?
-                        // For now, let's throw if ALL fail.
-                    }
-                    
-                    // Get CRLs
-                    try {
-                        println("INFO: Fetching CRL for ${cert.subjectDN}")
-                        val crls = crlClient.getEncoded(cert, null)
-                        if (crls != null) {
-                            for (crl in crls) {
-                                allCrls.add(crl)
-                                println("INFO: Added CRL for ${cert.subjectDN}")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        println("ERROR: CRL fetch failed: ${e.message}")
-                    }
+            try {
+                // Determine if we can fetch OCSP/CRL and embed them in DSS
+                val isAdded = ltvVerification.addVerification(
+                    signatureName, 
+                    ocspClient, 
+                    crlClient, 
+                    LtvVerification.CertificateOption.WHOLE_CHAIN, 
+                    LtvVerification.Level.OCSP_CRL, 
+                    LtvVerification.CertificateInclusion.YES
+                )
+
+                if (isAdded) {
+                    println("INFO: LTV verification added for $signatureName")
+                    hasRevocationData = true
+                } else {
+                    println("WARNING: LTV verification could not be fully added for $signatureName")
                 }
+            } catch (e: Exception) {
+                println("ERROR: Failed to add LTV for $signatureName: ${e.message}")
             }
         }
         
-        // Build and add DSS dictionary to the catalog
-        if (allOcsps.isEmpty() && allCrls.isEmpty()) {
-             throw Exception("No revocation data (OCSP/CRL) could be fetched! Check internet connection or certificate validity.")
+        if (!hasRevocationData) {
+            throw Exception("No revocation data (OCSP/CRL) could be fetched for LTV verification!")
         }
         
-        addDssToCatalog(allCerts, allOcsps, allCrls)
-    }
-    
-    private fun addDssToCatalog(
-        certs: List<ByteArray>,
-        ocsps: List<ByteArray>,
-        crls: List<ByteArray>
-    ) {
-        val catalog = pdfDocument.catalog
-        
-        val dss = PdfDictionary()
-        
-        // Add Certs array
-        if (certs.isNotEmpty()) {
-            val certsArray = PdfArray()
-            for (certBytes in certs) {
-                val stream = PdfStream(certBytes)
-                certsArray.add(stream.makeIndirect(pdfDocument))
-            }
-            dss.put(PdfName.Certs, certsArray)
-        }
-        
-        // Add OCSPs array
-        if (ocsps.isNotEmpty()) {
-            val ocspsArray = PdfArray()
-            for (ocspBytes in ocsps) {
-                val stream = PdfStream(ocspBytes)
-                ocspsArray.add(stream.makeIndirect(pdfDocument))
-            }
-            dss.put(PdfName.OCSPs, ocspsArray)
-        }
-        
-        // Add CRLs array
-        if (crls.isNotEmpty()) {
-            val crlsArray = PdfArray()
-            for (crlBytes in crls) {
-                val stream = PdfStream(crlBytes)
-                crlsArray.add(stream.makeIndirect(pdfDocument))
-            }
-            dss.put(PdfName.CRLs, crlsArray)
-        }
-        
-        // Add DSS to catalog
-        catalog.put(PdfName("DSS"), dss.makeIndirect(pdfDocument))
-        
-        println("INFO: DSS added with ${certs.size} certs, ${ocsps.size} OCSPs, ${crls.size} CRLs")
+        // Merge the LTV data into the document
+        ltvVerification.merge()
+        println("INFO: LTV verification merged into document")
     }
 }

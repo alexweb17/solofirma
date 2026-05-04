@@ -459,7 +459,7 @@ void _applyDigitalSignature(
   final signature = PdfSignature(
     certificate: certificate,
     digestAlgorithm: DigestAlgorithm.sha256,
-    cryptographicStandard: CryptographicStandard.cades,
+    cryptographicStandard: CryptographicStandard.cms,
   );
   
   // LTV (Long Term Validation) y Timestamp

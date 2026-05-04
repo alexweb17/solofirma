@@ -248,32 +248,32 @@ class MainActivity: FlutterActivity() {
         // TSA Client (Timestamp Authority)
         val tsaClient = TSAClientBouncyCastle("http://timestamp.digicert.com")
         
-        // OCSP and CRL clients for revocation info
+        // OCSP and CRL clients - used ONLY in the DSS post-signing step (NOT inline)
+        // Embedding CRL/OCSP inline causes "Not enough space" because CRLs can be megabytes.
         val ocspClient = OcspClientBouncyCastle(null)
         val crlClient = CrlClientOnline()
         
-        // Sign with PAdES (CAdES-equivalent for PDF)
+        // Sign with CMS (PKCS7) for Adobe Reader compatibility
+        // CRL/OCSP are NOT included inline - they go in the DSS (step 2)
         signer.signDetached(
             digest,
             signature,
             chain,
-            listOf(crlClient),
-            ocspClient,
+            null,        // NO inline CRL (will be added via DSS)
+            null,        // NO inline OCSP (will be added via DSS)
             tsaClient,
             0,
-            PdfSigner.CryptoStandard.CADES
+            PdfSigner.CryptoStandard.CMS
         )
         
         // STEP 2: Add DSS (Document Security Store) with LTV information
-        // This is done AFTER signing, on a re-opened document
+        // This adds CRL/OCSP OUTSIDE the signature container, in append mode
         try {
             addDssLtvInfo(outputPath, ocspClient, crlClient)
             println("INFO: DSS LTV information added successfully")
         } catch (e: Exception) {
-            println("ERROR: Could not add DSS LTV info: ${e.message}")
-            // CRITICAL CHANGE: Throw exception so Flutter knows it failed!
-            // We do NOT want a signature without LTV as it freezes Adobe.
-            throw Exception("LTV/DSS Failure: ${e.message}. Check internet/certificate.")
+            println("WARN: Could not add DSS LTV info: ${e.message}")
+            // Don't throw - the signature itself is valid, LTV is optional enhancement
         }
         
         return outputPath
