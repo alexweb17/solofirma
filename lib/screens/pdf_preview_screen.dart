@@ -114,22 +114,32 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
                     left: _guideBoxPosition!.dx,
                     top: _guideBoxPosition!.dy,
                     child: Container(
-                      width: 150,
-                      height: 75,
+                      width: 180,  // Proporcional a 270pt en el PDF
+                      height: 47,  // Proporcional a 70pt en el PDF
                       decoration: BoxDecoration(
                         border: Border.all(
                           color: Colors.blue,
                           width: 2,
                         ),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.blue.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                        color: Colors.blue.withOpacity(0.15),
                       ),
-                      child: const Center(
-                        child: Text(
-                          'Firma Aquí',
-                          style: TextStyle(
-                              color: Colors.blue, fontWeight: FontWeight.bold),
-                        ),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 4),
+                          Icon(Icons.qr_code_2, size: 36, color: Colors.blue.withOpacity(0.7)),
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text(
+                              'Firma aquí',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

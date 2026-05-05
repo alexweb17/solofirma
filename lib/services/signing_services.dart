@@ -76,6 +76,10 @@ class SigningService {
         try {
           final outputPath = originalPdf.path.replaceAll('.pdf', '-firmado.pdf');
           
+          // Generar QR con datos del firmante para apariencia visual
+          final qrContent = 'Firmado por: $signerName\nFecha: ${DateTime.now().toString().substring(0, 19)}\nSoloFirma';
+          final qrBytes = await _generateQrImage(qrContent);
+
           final result = await _signingChannel.invokeMethod<String>('signPdfWithLtv', {
             'pdfPath': originalPdf.path,
             'p12Bytes': p12Data.bytes,
@@ -87,8 +91,9 @@ class SigningService {
             'pageNumber': pageIndex + 1, // iText uses 1-based page numbers
             'x': pdfOffset.dx,
             'y': pdfOffset.dy,
-            'width': 200.0,
-            'height': 50.0,
+            'width': 270.0,  // QR (70) + spacing + texto
+            'height': 70.0,  // Alto suficiente para QR cuadrado
+            'qrBytes': qrBytes,
           });
           
           if (result != null) {

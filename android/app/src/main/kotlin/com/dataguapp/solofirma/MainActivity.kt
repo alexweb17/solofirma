@@ -14,6 +14,7 @@ import java.io.FileOutputStream
 import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.cert.Certificate
+import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import com.itextpdf.kernel.pdf.PdfReader
 import com.itextpdf.kernel.pdf.PdfWriter
@@ -26,43 +27,40 @@ import com.itextpdf.signatures.IExternalSignature
 import com.itextpdf.signatures.DigestAlgorithms
 import com.itextpdf.signatures.PdfSignatureAppearance
 import com.itextpdf.kernel.geom.Rectangle
+import com.itextpdf.io.image.ImageDataFactory
 import com.itextpdf.signatures.TSAClientBouncyCastle
 import com.itextpdf.signatures.OcspClientBouncyCastle
 import com.itextpdf.signatures.CrlClientOnline
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.Security
 
-class MainActivity: FlutterActivity() {
+class MainActivity : FlutterActivity() {
+
     private val FILES_CHANNEL = "com.dataguapp.solofirma/files"
     private val SIGNING_CHANNEL = "com.dataguapp.solofirma/signing"
 
     init {
-        // Register BouncyCastle provider
-        // Android has a built-in "BC" provider that is incomplete/deprecated.
-        // We must remove it to ensure our full BouncyCastle (bcprov-jdk15on) is used.
+        // Registrar BouncyCastle como provider principal.
+        // Android tiene un "BC" interno incompleto/obsoleto; hay que reemplazarlo.
         try {
             Security.removeProvider("BC")
-        } catch (e: Exception) {
-            // Ignore if it wasn't there
-        }
+        } catch (e: Exception) { /* ignorar si no existía */ }
         Security.addProvider(BouncyCastleProvider())
-        
-        // Fix for Android XML parser issue "This parser does not support specification..."
-        // Register our custom safe factory early
+
+        // Fix para el parser XML de iText en Android
         try {
             com.itextpdf.kernel.utils.XmlProcessorCreator.setXmlParserFactory(SafeXmlParserFactory())
-            println("INFO: SafeXmlParserFactory registered in init")
+            println("INFO: SafeXmlParserFactory registrado")
         } catch (e: Exception) {
-            println("ERROR: Failed to register SafeXmlParserFactory: ${e.message}")
+            println("ERROR: No se pudo registrar SafeXmlParserFactory: ${e.message}")
         }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
-        // Files channel (existing)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FILES_CHANNEL).setMethodCallHandler {
-            call, result ->
+
+        // Canal de archivos
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FILES_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "scanFile" -> {
                     val path = call.argument<String>("path")
@@ -94,41 +92,37 @@ class MainActivity: FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
-        // Signing channel (new)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SIGNING_CHANNEL).setMethodCallHandler {
-            call, result ->
+
+        // Canal de firma
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SIGNING_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "signPdfWithLtv" -> {
                     Thread {
                         try {
-                            val pdfPath = call.argument<String>("pdfPath")!!
-                            val p12Bytes = call.argument<ByteArray>("p12Bytes")!!
-                            val password = call.argument<String>("password")!!
-                            val outputPath = call.argument<String>("outputPath")!!
-                            val signerName = call.argument<String>("signerName") ?: "Firmado digitalmente"
-                            val reason = call.argument<String>("reason") ?: "Documento firmado con SoloFirma"
-                            val location = call.argument<String>("location") ?: "Ecuador"
-                            val pageNumber = call.argument<Int>("pageNumber") ?: 1
-                            val x = call.argument<Double>("x")?.toFloat() ?: 100f
-                            val y = call.argument<Double>("y")?.toFloat() ?: 100f
-                            val width = call.argument<Double>("width")?.toFloat() ?: 200f
-                            val height = call.argument<Double>("height")?.toFloat() ?: 50f
-                            
+                            val pdfPath     = call.argument<String>("pdfPath")!!
+                            val p12Bytes    = call.argument<ByteArray>("p12Bytes")!!
+                            val password    = call.argument<String>("password")!!
+                            val outputPath  = call.argument<String>("outputPath")!!
+                            val signerName  = call.argument<String>("signerName") ?: "Firmado digitalmente"
+                            val reason      = call.argument<String>("reason")     ?: "Documento firmado con SoloFirma"
+                            val location    = call.argument<String>("location")   ?: "Ecuador"
+                            val pageNumber  = call.argument<Int>("pageNumber")    ?: 1
+                            val x           = call.argument<Double>("x")?.toFloat()      ?: 100f
+                            val y           = call.argument<Double>("y")?.toFloat()      ?: 100f
+                            val width       = call.argument<Double>("width")?.toFloat()  ?: 200f
+                            val height      = call.argument<Double>("height")?.toFloat() ?: 50f
+
+                            val qrBytes = call.argument<ByteArray>("qrBytes")
+
                             val signedPath = signPdfWithIText(
                                 pdfPath, p12Bytes, password, outputPath,
                                 signerName, reason, location,
-                                pageNumber, x, y, width, height
+                                pageNumber, x, y, width, height, qrBytes
                             )
-                            
-                            runOnUiThread {
-                                result.success(signedPath)
-                            }
+                            runOnUiThread { result.success(signedPath) }
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            runOnUiThread {
-                                result.error("SIGNING_ERROR", e.message, e.stackTraceToString())
-                            }
+                            runOnUiThread { result.error("SIGNING_ERROR", e.message, e.stackTraceToString()) }
                         }
                     }.start()
                 }
@@ -137,38 +131,34 @@ class MainActivity: FlutterActivity() {
                     if (path != null) {
                         Thread {
                             try {
-                                val reader = PdfReader(path)
-                                val writer = PdfWriter(path + ".ltv.tmp")
-                                val pdfDoc = com.itextpdf.kernel.pdf.PdfDocument(reader, writer, StampingProperties().useAppendMode())
-                                
-                                val adobeLtv = AdobeLtvEnabling(pdfDoc)
-                                adobeLtv.enable()
-                                
+                                val reader  = PdfReader(path)
+                                val writer  = PdfWriter(path + ".ltv.tmp")
+                                val pdfDoc  = com.itextpdf.kernel.pdf.PdfDocument(
+                                    reader, writer, StampingProperties().useAppendMode()
+                                )
+                                AdobeLtvEnabling(pdfDoc).enable()
                                 pdfDoc.close()
-                                
+
+                                // Atomic rename: backup → rename → cleanup
                                 val originalFile = File(path)
-                                val tempFile = File(path + ".ltv.tmp")
-                                
-                                if (originalFile.delete()) {
-                                    if (tempFile.renameTo(originalFile)) {
-                                        runOnUiThread {
-                                            result.success(path)
-                                        }
-                                    } else {
-                                        runOnUiThread {
-                                            result.error("LTV_ERROR", "Could not rename temp file", null)
-                                        }
-                                    }
+                                val tempFile     = File(path + ".ltv.tmp")
+                                val backupFile   = File(path + ".bak")
+
+                                originalFile.renameTo(backupFile)
+                                if (tempFile.renameTo(originalFile)) {
+                                    backupFile.delete()
+                                    runOnUiThread { result.success(path) }
                                 } else {
+                                    // Rollback: restaurar backup
+                                    backupFile.renameTo(originalFile)
+                                    tempFile.delete()
                                     runOnUiThread {
-                                        result.error("LTV_ERROR", "Could not delete original file", null)
+                                        result.error("LTV_ERROR", "Atomic rename failed — original restaurado desde backup", null)
                                     }
                                 }
                             } catch (e: Exception) {
                                 e.printStackTrace()
-                                runOnUiThread {
-                                    result.error("LTV_ERROR", e.message, e.stackTraceToString())
-                                }
+                                runOnUiThread { result.error("LTV_ERROR", e.message, e.stackTraceToString()) }
                             }
                         }.start()
                     } else {
@@ -189,126 +179,198 @@ class MainActivity: FlutterActivity() {
         reason: String,
         location: String,
         pageNumber: Int,
-        x: Float, y: Float, width: Float, height: Float
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float,
+        qrBytes: ByteArray?
     ): String {
-        // Load P12/PFX keystore
+
+        // ── 1. Cargar el keystore P12 ──────────────────────────────────────────
         val keyStore = KeyStore.getInstance("PKCS12")
         keyStore.load(p12Bytes.inputStream(), password.toCharArray())
-        
-        // Get private key and certificate chain
-        // Get private key and certificate chain
-        val aliases = keyStore.aliases()
+
+        // ── 2. Obtener clave privada ───────────────────────────────────────────
         var alias: String? = null
         var privateKey: PrivateKey? = null
-        
+        val aliases = keyStore.aliases()
         while (aliases.hasMoreElements()) {
             val currentAlias = aliases.nextElement()
             if (keyStore.isKeyEntry(currentAlias)) {
                 try {
                     val key = keyStore.getKey(currentAlias, password.toCharArray())
                     if (key is PrivateKey) {
-                        alias = currentAlias
+                        alias      = currentAlias
                         privateKey = key
                         break
                     }
                 } catch (e: Exception) {
-                    println("DEBUG: Failed to get key for alias $currentAlias: ${e.message}")
+                    println("DEBUG: No se pudo obtener clave para alias $currentAlias: ${e.message}")
                 }
             }
         }
-        
-        if (alias == null || privateKey == null) {
-            throw Exception("No valid private key found in P12 file. Password might be incorrect or file format issue.")
+        requireNotNull(privateKey) { "No se encontró clave privada en el archivo P12. Contraseña incorrecta o archivo dañado." }
+        requireNotNull(alias)
+
+        val rawChain = keyStore.getCertificateChain(alias)
+        require(!rawChain.isNullOrEmpty()) { "No se encontró cadena de certificados para alias $alias" }
+
+        // ── 3. FIX PRINCIPAL: Re-codificar certificados vía BouncyCastle ───────
+        //
+        // Android devuelve los certificados del KeyStore en su propio formato interno
+        // (AndroidOpenSSL / sun.security.x509.X509CertImpl), que iText no puede embeber
+        // correctamente dentro de la estructura CMS. Esto provoca que Adobe Acrobat
+        // muestre "Desconocido" y que "Mostrar certificado de firmante" aparezca vacío.
+        //
+        // La solución es forzar la re-codificación de cada certificado a través del
+        // CertificateFactory de BouncyCastle, garantizando instancias 100% compatibles
+        // con el motor de firma de iText.
+        val bcCertFactory = CertificateFactory.getInstance("X.509", BouncyCastleProvider.PROVIDER_NAME)
+        val bcChain: Array<Certificate> = rawChain.map { cert ->
+            bcCertFactory.generateCertificate(cert.encoded.inputStream())
+        }.toTypedArray()
+
+        // Log de diagnóstico: muestra cuántos certs hay y el CN de cada uno
+        println("DEBUG: Cadena de certificados (${bcChain.size} cert(s)):")
+        bcChain.forEachIndexed { i, cert ->
+            if (cert is X509Certificate) {
+                println("DEBUG:   [$i] Subject : ${cert.subjectDN}")
+                println("DEBUG:   [$i] Issuer  : ${cert.issuerDN}")
+                println("DEBUG:   [$i] Serial  : ${cert.serialNumber}")
+                println("DEBUG:   [$i] Encoding: ${cert.encoded.size} bytes")
+            }
         }
-        
-        val chain = keyStore.getCertificateChain(alias)
-        if (chain == null || chain.isEmpty()) {
-             throw Exception("No certificate chain found for alias $alias")
-        }
-        
-        // Create PDF reader and signer
-        val reader = PdfReader(pdfPath)
+
+        // ── 4. Preparar PdfSigner con validación de página ─────────────────────
+        val reader     = PdfReader(pdfPath)
         val outputFile = File(outputPath)
-        val signer = PdfSigner(reader, FileOutputStream(outputFile), StampingProperties().useAppendMode())
-        
-        // Configure signature appearance
+        val signer     = PdfSigner(reader, FileOutputStream(outputFile), StampingProperties().useAppendMode())
+
+        // Validar que pageNumber esté dentro del rango del PDF
+        val totalPages = signer.document.numberOfPages
+        val validPageNumber = pageNumber.coerceIn(1, totalPages)
+        if (pageNumber != validPageNumber) {
+            println("WARN: pageNumber $pageNumber fuera de rango [1..$totalPages], ajustado a $validPageNumber")
+        }
+
+        // ── 5. Apariencia visual de la firma ──────────────────────────────────
+        //
+        // CONVERSIÓN DE COORDENADAS:
+        // Flutter/Syncfusion usa origen ARRIBA-IZQUIERDA (Y crece hacia abajo).
+        // PDF/iText usa origen ABAJO-IZQUIERDA (Y crece hacia arriba).
+        // Fórmula: iTextY = pageHeight - flutterY - signatureHeight
+        val page = signer.document.getPage(validPageNumber)
+        val pageSize = page.pageSize
+        val pageHeight = pageSize.height
+        val pageWidth = pageSize.width
+
+        // Convertir Y de coordenadas Flutter → coordenadas PDF
+        val pdfY = pageHeight - y - height
+
+        // Clamp X e Y para que la firma no se salga de los límites de la página
+        val clampedX = x.coerceIn(0f, (pageWidth - width).coerceAtLeast(0f))
+        val clampedY = pdfY.coerceIn(0f, (pageHeight - height).coerceAtLeast(0f))
+
+        println("DEBUG: Página ${validPageNumber} → tamaño: ${pageWidth}x${pageHeight} pts")
+        println("DEBUG: Coords Flutter (top-left): x=$x, y=$y")
+        println("DEBUG: Coords PDF (bottom-left):  x=$clampedX, y=$clampedY (w=$width, h=$height)")
+
         val appearance = signer.signatureAppearance
         appearance.setReason(reason)
         appearance.setLocation(location)
-        appearance.setPageNumber(pageNumber)
-        appearance.setPageRect(Rectangle(x, y, width, height))
-        appearance.setLayer2Text("$signerName\n${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(java.util.Date())}")
-        
+        appearance.setPageNumber(validPageNumber)
+        appearance.setPageRect(Rectangle(clampedX, clampedY, width, height))
+
+        val dateStr = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", java.util.Locale("es", "EC")).format(java.util.Date())
+
+        // Configurar apariencia visual: QR a la izquierda + texto a la derecha
+        if (qrBytes != null && qrBytes.isNotEmpty()) {
+            try {
+                val imageData = ImageDataFactory.create(qrBytes)
+                appearance.setRenderingMode(PdfSignatureAppearance.RenderingMode.GRAPHIC_AND_DESCRIPTION)
+                appearance.setSignatureGraphic(imageData)
+                println("DEBUG: QR image configurado en apariencia de firma (${qrBytes.size} bytes)")
+            } catch (e: Exception) {
+                println("WARN: No se pudo configurar QR en firma: ${e.message}")
+                // Fallback: solo texto
+            }
+        }
+        appearance.setLayer2Text("Firmado electrónicamente por:\n$signerName\n$dateStr")
         signer.fieldName = "SoloFirmaSignature_${System.currentTimeMillis()}"
-        
-        // Create signature components
+
+        // ── 6. Componentes criptográficos ──────────────────────────────────────
         val digest: IExternalDigest = BouncyCastleDigest()
-        val signature: IExternalSignature = PrivateKeySignature(privateKey, DigestAlgorithms.SHA256, BouncyCastleProvider.PROVIDER_NAME)
-        
-        // TSA Client (Timestamp Authority)
-        val tsaClient = TSAClientBouncyCastle("http://timestamp.digicert.com")
-        
-        // OCSP and CRL clients - used ONLY in the DSS post-signing step (NOT inline)
-        // Embedding CRL/OCSP inline causes "Not enough space" because CRLs can be megabytes.
-        val ocspClient = OcspClientBouncyCastle(null)
-        val crlClient = CrlClientOnline()
-        
-        // Sign with CMS (PKCS7) for Adobe Reader compatibility
-        // CRL/OCSP are NOT included inline - they go in the DSS (step 2)
+        val signature: IExternalSignature = PrivateKeySignature(
+            privateKey, DigestAlgorithms.SHA256, BouncyCastleProvider.PROVIDER_NAME
+        )
+        val tsaClient   = TSAClientBouncyCastle("http://timestamp.digicert.com")
+        val ocspClient  = OcspClientBouncyCastle(null)
+        val crlClient   = CrlClientOnline()
+
+        // ── 7. Firma CMS (PKCS7) ───────────────────────────────────────────────
+        //
+        // Se usa bcChain (re-codificada vía BouncyCastle) para garantizar que Adobe
+        // pueda leer el certificado embebido en el CMS y mostrar los detalles del firmante.
+        //
+        // estimatedSize = 30000: el timestamp real de DigiCert incluye su cadena completa
+        // (~15-20 KB), superando el valor por defecto de iText (~12 KB).
         signer.signDetached(
             digest,
             signature,
-            chain,
-            null,        // NO inline CRL (will be added via DSS)
-            null,        // NO inline OCSP (will be added via DSS)
+            bcChain,   // ← certificados re-codificados en formato BouncyCastle
+            null,      // sin CRL inline (se añade via DSS en paso 2)
+            null,      // sin OCSP inline (se añade via DSS en paso 2)
             tsaClient,
-            0,
+            30000,     // espacio suficiente para timestamp DigiCert
             PdfSigner.CryptoStandard.CMS
         )
-        
-        // STEP 2: Add DSS (Document Security Store) with LTV information
-        // This adds CRL/OCSP OUTSIDE the signature container, in append mode
+
+        // ── 8. Añadir DSS/LTV en modo append (paso 2) ─────────────────────────
         try {
             addDssLtvInfo(outputPath, ocspClient, crlClient)
-            println("INFO: DSS LTV information added successfully")
+            println("INFO: DSS/LTV añadido correctamente")
         } catch (e: Exception) {
-            println("WARN: Could not add DSS LTV info: ${e.message}")
-            // Don't throw - the signature itself is valid, LTV is optional enhancement
+            // La firma es válida aunque falle el LTV (e.g. CA ecuatoriana sin OCSP accesible)
+            println("WARN: No se pudo añadir DSS/LTV: ${e.message}")
         }
-        
+
         return outputPath
     }
-    
+
     /**
-     * Adds Document Security Store (DSS) with LTV information to an already-signed PDF.
-     * Uses AdobeLtvEnabling class which builds DSS manually for Adobe compatibility.
+     * Añade Document Security Store (DSS) con datos LTV a un PDF ya firmado,
+     * en modo append para no invalidar la firma existente.
      */
     private fun addDssLtvInfo(
         pdfPath: String,
         ocspClient: OcspClientBouncyCastle,
         crlClient: CrlClientOnline
     ) {
-        val tempPath = pdfPath + ".ltv.tmp"
-        
-        // Re-open the signed PDF in append mode
-        val reader = PdfReader(pdfPath)
-        val writer = PdfWriter(tempPath)
-        val pdfDoc = com.itextpdf.kernel.pdf.PdfDocument(reader, writer, StampingProperties().useAppendMode())
-        
+        val tempPath = "$pdfPath.ltv.tmp"
+        val reader   = PdfReader(pdfPath)
+        val writer   = PdfWriter(tempPath)
+        val pdfDoc   = com.itextpdf.kernel.pdf.PdfDocument(
+            reader, writer, StampingProperties().useAppendMode()
+        )
         try {
-            // Use AdobeLtvEnabling to add DSS with certificates, OCSP, and CRL
-            val adobeLtv = AdobeLtvEnabling(pdfDoc)
-            adobeLtv.enable()
-            
+            AdobeLtvEnabling(pdfDoc).enable()
             pdfDoc.close()
-            
-            // Replace original with LTV-enabled version
+
+            // Atomic rename: backup → rename → cleanup para evitar pérdida de datos
             val originalFile = File(pdfPath)
-            val tempFile = File(tempPath)
-            originalFile.delete()
-            tempFile.renameTo(originalFile)
-            
-            println("INFO: AdobeLtvEnabling completed successfully")
+            val tempFile     = File(tempPath)
+            val backupFile   = File("$pdfPath.bak")
+
+            originalFile.renameTo(backupFile)
+            if (tempFile.renameTo(originalFile)) {
+                backupFile.delete()
+                println("INFO: AdobeLtvEnabling completado")
+            } else {
+                // Rollback: restaurar backup
+                backupFile.renameTo(originalFile)
+                tempFile.delete()
+                throw Exception("Atomic rename failed — original restaurado desde backup")
+            }
         } catch (e: Exception) {
             pdfDoc.close()
             File(tempPath).delete()
@@ -318,9 +380,7 @@ class MainActivity: FlutterActivity() {
 
     private fun saveFileToDownloads(sourcePath: String, fileName: String): String? {
         val sourceFile = File(sourcePath)
-        if (!sourceFile.exists()) {
-            throw Exception("Source file does not exist")
-        }
+        if (!sourceFile.exists()) throw Exception("El archivo fuente no existe")
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val contentValues = ContentValues().apply {
@@ -328,25 +388,18 @@ class MainActivity: FlutterActivity() {
                 put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/SoloFirma")
             }
-
-            val resolver = contentResolver
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                ?: throw Exception("Failed to create MediaStore entry")
-
-            resolver.openOutputStream(uri)?.use { outputStream ->
-                FileInputStream(sourceFile).use { inputStream ->
-                    inputStream.copyTo(outputStream)
-                }
+            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                ?: throw Exception("No se pudo crear entrada en MediaStore")
+            contentResolver.openOutputStream(uri)?.use { out ->
+                FileInputStream(sourceFile).use { it.copyTo(out) }
             }
-
             MediaScannerConnection.scanFile(this, arrayOf(uri.path), null, null)
             "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/SoloFirma/$fileName"
         } else {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val solofirmaDir = File(downloadsDir, "SoloFirma")
-            if (!solofirmaDir.exists()) {
-                solofirmaDir.mkdirs()
-            }
+            val solofirmaDir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "SoloFirma"
+            ).also { it.mkdirs() }
             val destFile = File(solofirmaDir, fileName)
             sourceFile.copyTo(destFile, overwrite = true)
             MediaScannerConnection.scanFile(this, arrayOf(destFile.absolutePath), null, null)
